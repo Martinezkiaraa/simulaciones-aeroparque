@@ -3,7 +3,7 @@ import random
 import matplotlib.pyplot as plt
 
 
-#la simulación depende del umbral de lambda no? por eso lo paso por parámetro
+#la simulación depende del umbral de lambda 
 def run_simulacion(lambda_por_min):
     minutos = 1080
     aviones = []
