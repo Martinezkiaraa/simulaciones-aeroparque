@@ -2,6 +2,7 @@ from Clases import plane
 import random
 import matplotlib.pyplot as plt
 
+
 #la simulación depende del umbral de lambda no? por eso lo paso por parámetro
 def run_simulacion(lambda_por_min):
     minutos = 1080
@@ -18,6 +19,12 @@ def run_simulacion(lambda_por_min):
         #ESTO ES BASIC 
     
     return aviones
+
+
+aviones1 = run_simulacion(1/60) # o sea un avión x hora
+
+print(f"Se generaron {len(aviones1)} aviones")
+print(aviones1[0].id, aviones1[0].minuto_aparicion)
 
 def plot_aviones_por_minuto(aviones, minutos=1080):
     conteo_por_minuto = [0] * minutos
