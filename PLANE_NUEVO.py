@@ -7,7 +7,6 @@ class plane:
         self.minuto_aparicion = minuto_aparicion
         self.distancia_mn_aep = 100.0   # millas náuticas a AEP
         self.velocidad_actual = 300.0   # nudos (mn/h)
-        self.tiempo_en_min_aep = (self.distancia_mn_aep / self.velocidad_actual) * 60
         self.landed_minute = None
         self.next: Optional["plane"] = None   # avión que tengo adelante
         self.v_max = 0.0
@@ -16,16 +15,13 @@ class plane:
 
     def _eta(self, dist_mn, vel_kn):
         # minutos hasta AEP con velocidad actual
-        dist_mn / (vel_kn / 60.0)
+        return dist_mn / (vel_kn / 60.0)
 
     def distancia_AEP(self):
         return self.distancia_mn_aep 
                     
     def velocidad(self):
         return self.velocidad_actual
-    
-    def estado(self):
-        return self.estado
     
     def calcular_rango_velocidad(self):
         d = self.distancia_mn_aep
@@ -69,7 +65,7 @@ class plane:
         if self.estado == "en radar":
 
             # Si hay líder válido, aplicar regla líder−20 / buffer 5
-            if self.next is not None and self.next.estado() in ("en radar"): # PREGUNTA: como usariamos la funcion? deberia avanzar desde el mas cercano al aeropuerto al más lejano así si el next aterrizó se actualiza su estado antes de que self calcule el gap por ej
+            if self.next is not None and self.next.estado == "en radar":
                 eta_self = self._eta(self.distancia_mn_aep, self.velocidad_actual)
                 eta_next = self._eta(self.next.distancia_AEP(), self.next.velocidad())
                 gap = eta_self - eta_next  # seguidor - líder
@@ -77,12 +73,19 @@ class plane:
                 if gap < 4.0:
                     # seguidor = vel_líder − 20; si cae por debajo de v_min → desvío
                     nueva_v = self.next.velocidad() - 20.0
-                    if (nueva_v < self.v_min):
+                    if nueva_v < self.v_min:
+                        idx = self.fila.get_index(self)      # guardá tu índice antes de sacar
+                        leader = self.next                   # guardá quién era tu líder
                         self.estado = "desviado"
-                        self.velocidad_actual = 200.0  # outbound
-                        self.fila.eliminar_avion(self) # PREGUNTA: puede no estar en la fila?                   
+                        self.velocidad_actual = 200.0 # outbound
+                        self.fila.eliminar_avion(self)       # te vas de la fila
+                        self.next = None                     # vos ya no tenés líder
+                        # actualizar el seguidor (si existe): ahora su líder pasa a ser 'leader'
+                        if idx < len(self.fila.aviones):     # ojo: la lista ya se corrió a la izquierda
+                            follower = self.fila.aviones[idx]
+                            follower.next = leader           
                     else:
-                        self.velocidad_actual = self.next.velocidad() - 20.0
+                        self.velocidad_actual = nueva_v
 
                 elif gap >= 5.0:
                     # colchón logrado: volver inmediatamente a vmax del tramo
@@ -94,7 +97,7 @@ class plane:
 
             # Avanzar hacia AEP este minuto
             self.distancia_mn_aep = max(0.0, self.distancia_mn_aep - (self.velocidad_actual / 60.0) * dt)
-            self.tiempo_en_min_aep = (self.distancia_mn_aep / self.velocidad_actual) * 60 if self.velocidad_actual > 0 else float('inf')
+            self.tiempo_en_min_aep = self._eta(self.distancia_mn_aep, self.velocidad_actual)
 
             if self.distancia_mn_aep <= 0.0:
                 self.distancia_mn_aep = 0.0
@@ -102,14 +105,10 @@ class plane:
                 if self.landed_minute is None and minuto_actual is not None:
                     self.landed_minute = minuto_actual
             else:
-                self.estado = "volando"
+                self.estado = "en radar"
 
             # Mantener orden en la fila si corresponde
-            try:
-                self.fila.actualizar_orden()
-            except Exception:
-                pass
-
+            self.fila.actualizar_orden()
             return
 
         # 3) Aterrizado: nada que hacer
@@ -120,16 +119,26 @@ class plane:
         if self.estado == "desviado":
             # Intentar reinsertar (gap >= 10' según tu buscar_gap)
             posicion = self.buscar_gap()
+            
             if posicion is not None:
-                try:
-                    self.fila.aviones.insert(posicion, self)
-                    self.fila.actualizar_orden()
-                except Exception:
-                    pass
-                self.estado = "en radar"
-                # al reinsertar, usar vmax del tramo actual
+                # 1) Insertar en la fila en la posición calculada
+                self.fila.aviones.insert(posicion, self)
+                
+                # 2) Actualizar punteros de liderazgo localmente
+                leader = self.fila.aviones[posicion - 1] if posicion > 0 else None
+                self.next = leader  # el insertado ve como líder al que queda adelante
+                # el que queda detrás del insertado ahora ve al insertado como líder
+                if posicion + 1 < len(self.fila.aviones):
+                    follower = self.fila.aviones[posicion + 1]
+                    follower.next = self
+
+                # 3) Velocidad de reingreso: usar tu perfil y respetar límites del tramo
                 self.calcular_rango_velocidad()
                 self.velocidad_actual = self.v_max
+
+                # 4) Estado y ordenar por distancia para mantener la fila prolija
+                self.fila.actualizar_orden()
+                self.estado = "en radar"
                 return
 
             # Si no hay gap, seguir saliendo a 200 kn (= 200/60 mn por minuto)
