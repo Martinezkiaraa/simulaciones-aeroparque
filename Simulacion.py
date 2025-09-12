@@ -1,23 +1,24 @@
-from Clases import plane
+from plane import plane
+from heap import heap
 import random
 import matplotlib.pyplot as plt
 
 #la simulación depende del umbral de lambda no? por eso lo paso por parámetro
 def run_simulacion(lambda_por_min):
+    
     minutos = 1080
-    aviones = []
+    aviones = heap()
     next_id = 1
     
+    #CREO LOS AVIONES
     for minuto in range(minutos):
         U = random.random() #random.random() da un numero con distr uniforme entre 0 y 1
         if U < lambda_por_min: 
             nuevo = plane(id=next_id, minuto_aparicion=minuto)
-            aviones.append(nuevo)
+            aviones.agregar_avion(nuevo)
             next_id += 1
-        
-        #ESTO ES BASIC 
+    #En aviones tenemos un array cn todos los aviones q entraron al radar
     
-    return aviones
 
 def plot_aviones_por_minuto(aviones, minutos=1080):
     conteo_por_minuto = [0] * minutos
