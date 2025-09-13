@@ -156,6 +156,22 @@ def simular_con_historia(lambda_por_min, minutos=600, seed=42):
 
     return historia, congestion, desvios_montevideo
 
+# EJERCICIO 3
+
+def estimar_prob_5(n_sim=200_000, seed=42):
+    np.random.seed(seed)
+    cuenta_5 = 0
+    
+    for i in range(n_sim):
+        aviones = run_simulacion(lambda_por_min=1/60, minutos=60)
+        if len(aviones) == 5:
+            cuenta_5 += 1
+    
+    p_hat = cuenta_5 / n_sim
+    se = np.sqrt(p_hat * (1 - p_hat) / n_sim)
+    ic = (p_hat - 1.96 * se, p_hat + 1.96 * se)
+    return p_hat, se, ic
+
 # <--- EJERCICIO 4 ---- >
 
 def analizar_congestion(congestion, lambda_):
@@ -257,6 +273,13 @@ if __name__ == "__main__":
     # Opción 2: animación de la aproximación
     #historia = simular_con_historia(1/60, 1080, 7)
     #animar_con_estelas(historia, minutos=1080, tail=25)
+
+    # Simulación con lambda = 1/60
+    p, se, ci = estimar_prob_5()
+    print(f"Prob. estimada de 5 arribos en 1h = {p:.6f}")
+    print(f"Error estándar = {se:.6f}")
+    print(f"IC 95% = ({ci[0]:.6f}, {ci[1]:.6f})")
+
 
     lambdas = [0.02, 0.1, 0.2, 0.5, 1]
 
