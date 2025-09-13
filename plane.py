@@ -72,7 +72,7 @@ class plane:
             # Si hay líder válido, aplicar regla líder−20 / buffer 5
             if self.next is not None and self.next.estado() in ("en radar"): # PREeUNTA: l next dírebe
                 eta_self = self._eta(self.distancia_mn_aep, self.velocidad_actual)
-                eta_next = self._eta(self.next.distancia_AEP(), self.next.velocidad())
+                eta_next = self._eta(self.next.distancia_mn_aep, self.next.velocidad())
                 gap = eta_self - eta_next  # seguidor - líder
     
                 if gap < 4.0:
