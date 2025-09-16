@@ -1,0 +1,80 @@
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+
+class MetricasSimulacion:
+    def __init__(self):
+        self.aterrizajes = 0
+        self.aviones = 0
+        self.reinserciones = 0
+        self.desvios_montevideo = 0
+        self.volando = 0
+
+    def registrar_aterrizaje(self, cantidad=1):
+        self.aterrizajes += cantidad
+
+    def registrar_aviones(self, cantidad=1):
+        self.aviones += cantidad
+    
+    def en_vuelo(self, cantidad):
+        self.volando =cantidad
+
+    def registrar_reinsercion(self, cantidad=1):
+        self.reinserciones += cantidad
+
+    def registrar_desvio_montevideo(self, cantidad=1):
+        self.desvios_montevideo += cantidad
+
+    def registrar_desvio_rio(self, cantidad=1):
+        self.registrar_desvio_rio += cantidad
+    
+    def resumen(self):
+        return {
+            "aterrizajes": self.aterrizajes,
+            "reinserciones": self.reinserciones,
+            "desvios_montevideo": self.desvios_montevideo,
+            "aviones": self.aviones,
+            "en vuelo": self.volando
+        }
+
+    def __repr__(self):
+        return f"<Métricas: aterrizajes={self.aterrizajes}, reinserciones={self.reinserciones}, desvíos={self.desvios_montevideo}>"
+
+
+# Ejercicio 4
+
+def analizar_congestion(congestion):
+    minutos_totales = len(congestion)
+    minutos_con_congestion = sum(1 for c in congestion.values() if c > 0)
+    frecuencia = minutos_con_congestion / minutos_totales
+    promedio = sum(congestion.values()) / minutos_totales
+    return {"frecuencia": frecuencia, "promedio": promedio}
+
+def analizar_montevideo(desvios):
+    minutos = len(desvios)
+    minutos_con_desvio = sum(1 for c in desvios.values() if c > 0)
+    frecuencia = minutos_con_desvio / minutos
+    promedio = sum(desvios.values()) / minutos
+    return {"frecuencia": frecuencia, "promedio": promedio}
+
+def calcular_atraso_promedio(historia, t_ideal):
+    atrasos = []
+    for avion_id, datos in historia.items():
+        if len(datos["t"]) == 0:
+            continue
+        minuto_aparicion = datos["t"][0]
+        if "Aterrizó" not in datos["estado"]:
+            continue
+        idx = datos["estado"].index("Aterrizó")
+        minuto_aterrizo = datos["t"][idx]
+        t_real = minuto_aterrizo - minuto_aparicion
+        atrasos.append(t_real - t_ideal)
+    return np.mean(atrasos) if atrasos else 0.0
+
+def tiempo_ideal():
+    tramos = [(50, 500), (35, 300), (10, 250), (5, 150)]
+    total_minutos = sum(dist / (v / 60.0) for dist, v in tramos)
+    return total_minutos
