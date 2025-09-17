@@ -16,7 +16,7 @@ import numpy as np
 # USANDO SIMULACIÓN MONTE CARLO (CON λ = 1/60).
 # ============================================================
 
-def estimar_prob_5(n_sim = 200_000, seed = 42):
+def estimar_prob_5(n_sim=200_000, seed=42, dia_ventoso=False, metricas=MetricasSimulacion()):
     np.random.seed(seed)
     cuenta_5 = 0
     
@@ -48,19 +48,18 @@ if __name__ == "__main__":
     print("=== EJERCICIO 1: Simulación Monte Carlo ===")
     print("Ejecutando simulación detallada con lambda = 0.1...")
     
-    datos_mc = simular_con_historia(
-        lambda_por_min = 0.1, 
-        minutos = 200, 
-        seed=  42, 
-        dia_ventoso = False, 
-        metricas = MetricasSimulacion()
-    )
+    # Simulación Monte Carlo detallada
+    # Reutilizamos simular_con_historia para obtener historia completa con velocidades
+    from Simulacion import simular_con_historia
+    datos_mc = simular_con_historia(lambda_por_min=0.1, minutos=200, seed=42, dia_ventoso=False, metricas=MetricasSimulacion())
     
     print("Generando visualizaciones...")
-    visualizar_simulacion_monte_carlo(datos_mc, mostrar_ultimos_minutos = 100)
+    
+    # Visualización estática (x vs t y v vs t)
+    #visualizar_simulacion_monte_carlo(datos_mc, mostrar_ultimos_minutos=100)
     
     print("Generando animación...")
-    animar_simulacion_monte_carlo({"historia": datos_mc["historia"]}, mostrar_ultimos_minutos = 100, intervalo = 200)
+    #anim = animar_simulacion_monte_carlo({"historia": datos_mc["historia"]}, mostrar_ultimos_minutos=100, intervalo=200)
     
     print("=== FIN EJERCICIO 1 ===\n")
     

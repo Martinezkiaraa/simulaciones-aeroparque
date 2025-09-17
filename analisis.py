@@ -54,7 +54,12 @@ class MetricasSimulacion:
     def registrar_desvio_rio(self, cantidad = 1):
         self.desvios_rio += cantidad
     
-    # DEVOLVER UN RESUMEN DE TODAS LAS MÉTRICAS (PARA INFORME)
+    def registrar_desvio_tormenta(self, cantidad=1):
+        self.desvios_tormenta+=cantidad
+
+    def registrar_desvio_viento_tormenta(self, cantidad=1):
+        self.desvios_viento_tormenta+=cantidad
+    
     def resumen(self):
         return {
             "aterrizajes": self.aterrizajes,
@@ -63,6 +68,9 @@ class MetricasSimulacion:
             "desvios_rio": self.desvios_rio,
             "aviones": self.aviones,
             "en vuelo": self.volando,
+            "desvios_viento_totales": self.desvios_viento,
+            "desvios_tormenta_totales": self.desvios_tormenta,
+            "desvios_viento_tormenta_totales": self.desvio_viento_tormenta
         }
 
     # REPRESENTACIÓN DE TEXTO (ÚTIL PARA DEBUG)

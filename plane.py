@@ -7,7 +7,7 @@ import random
 # ============================================================
 
 class plane:
-    def __init__(self, id, minuto_aparicion, fila, desviados, mtvd, rio):
+    def __init__(self, id, minuto_aparicion, fila, desviados, mtvd, viento, tormenta, tormenta_viento):
         self.id = id 
         self.estado = "En fila"             # ESTADO INICIAL
         self.minuto_aparicion = minuto_aparicion
@@ -22,13 +22,10 @@ class plane:
         self.fila = fila
         self.desviados = desviados
         self.mtvd = mtvd
-        self.rio = rio
+        self.viento = viento
+        self.tormenta = tormenta
+        self.tormenta_viento = tormenta_viento
 
-    # ========================================================
-    # ENUNCIADO / PARTE 1
-    # CALCULA EL ETA (MINUTOS HASTA LLEGAR A AEP) A VELOCIDAD DADA
-    # ========================================================
-    
     def _eta(self, dist_mn, vel_kn):
         return dist_mn / (vel_kn / 60.0)
 
@@ -177,7 +174,7 @@ class plane:
                     if (self.estado == "Desviado"):
                         self.desviados.eliminar_avion(self)
                     else:
-                        self.rio.eliminar_avion(self)
+                        self.viento.eliminar_avion(self)
                     self.estado = "Montevideo"
                     self.mtvd.agregar_avion(self)
                     metricas.registrar_desvio_montevideo()
@@ -193,8 +190,8 @@ class plane:
         if (self.estado == "Desviado"):
             self.desviados.eliminar_avion(self)
         else:
-            self.rio.eliminar_avion(self)
-        # ACTUALIZA PUNTEROS LÍDER Y SEGUIDOR
+            self.viento.eliminar_avion(self)
+        # 2) Actualizar punteros de liderazgo localmente
         leader = self.fila.aviones[posicion - 1] if posicion > 0 else None
         self.next = leader  # el insertado ve como líder al que queda adelante
         if posicion + 1 < len(self.fila.aviones):
