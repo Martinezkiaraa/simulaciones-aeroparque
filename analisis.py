@@ -1,17 +1,19 @@
 import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-
 
 class MetricasSimulacion:
     def __init__(self):
         self.aterrizajes = 0
+
         self.aviones = 0
+
         self.reinserciones = 0
+        self.reinserciones_unicas = set() 
+
         self.desvios_montevideo = 0
         self.volando = 0
+
+        self.desvios_rio = 0
+        self.desvios_totales = 0
 
     def registrar_aterrizaje(self, cantidad=1):
         self.aterrizajes += cantidad
@@ -20,16 +22,18 @@ class MetricasSimulacion:
         self.aviones += cantidad
     
     def en_vuelo(self, cantidad):
-        self.volando =cantidad
+        self.volando+=cantidad
 
-    def registrar_reinsercion(self, cantidad=1):
-        self.reinserciones += cantidad
+    def registrar_reinsercion(self, id_avion):
+        self.reinserciones += 1
+        self.reinserciones_unicas.add(id_avion)
 
     def registrar_desvio_montevideo(self, cantidad=1):
         self.desvios_montevideo += cantidad
 
     def registrar_desvio_rio(self, cantidad=1):
-        self.registrar_desvio_rio += cantidad
+        self.desvios_rio+=cantidad
+    
     
     def resumen(self):
         return {
@@ -37,7 +41,8 @@ class MetricasSimulacion:
             "reinserciones": self.reinserciones,
             "desvios_montevideo": self.desvios_montevideo,
             "aviones": self.aviones,
-            "en vuelo": self.volando
+            "en vuelo": self.volando,
+            "desvios_rio_totales": self.desvios_rio,
         }
 
     def __repr__(self):

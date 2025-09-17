@@ -26,6 +26,7 @@ if __name__ == "__main__":
     lambdas = [0.02, 0.1, 0.2, 0.5, 1]
     metricas_lambdas = {lam: MetricasSimulacion() for lam in lambdas}
 
+    #n_rep + grande
     df = correr_experimentos(lambdas, n_rep=300, metricas_lambda = metricas_lambdas)
 
     # Guardar resultados
@@ -36,9 +37,9 @@ if __name__ == "__main__":
         print(resumen)
 
     # Graficar
-    plot_metricas(df, "congestion_prom", "Aviones en congestión", "Congestión promedio por lambda")
-    plot_metricas(df, "montevideo_prom", "Desvíos a Montevideo", "Desvíos promedio a Montevideo por lambda")
-    plot_metricas(df, "atraso_prom", "Atraso promedio (minutos)", "Atraso promedio por lambda")
+    #plot_metricas(df, "congestion_prom", "Aviones en congestión", "Congestión promedio por lambda")
+    #plot_metricas(df, "montevideo_prom", "Desvíos a Montevideo", "Desvíos promedio a Montevideo por lambda")
+    #plot_metricas(df, "atraso_prom", "Atraso promedio (minutos)", "Atraso promedio por lambda")
 
     #Ejercicio 4
     

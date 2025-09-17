@@ -41,7 +41,7 @@ class plane:
         else:
             self.v_min, self.v_max = 120, 150
 
-    def avanzar(self, minuto_actual: int = None, dt: float = 1.0, hay_viento = True):
+    def avanzar(self, minuto_actual: int = None, dt: float = 1.0, hay_viento = True, metricas = None):
         # 1) Actualizar límites de tramo
         self.calcular_rango_velocidad()
 
@@ -92,10 +92,11 @@ class plane:
                 #VEMOS SI HAY UNA INTERRUPCIÓN DE ATERRIZAJE
                 if random.random() < p_evento:
                     self.estado = "Rio"
+                    metricas.registrar_desvio_rio()
                     self.velocidad_actual = 200.0
-                    self.next = None
+                    lider = self.next 
                     ind = self.fila.get_index(self)
-                    lider = self.next  
+                    self.next = None
                     self.fila.eliminar_avion(self)       # te vas de la fila
                     self.rio.agregar_avion(self)
                     if ind < len(self.fila.aviones):     # ojo: la lista ya se corrió a la izquierda
@@ -147,9 +148,8 @@ class plane:
                         self.rio.eliminar_avion(self)
                     self.estado = "Montevideo"
                     self.mtvd.agregar_avion(self)
+                    metricas.registrar_desvio_montevideo()
                 return
-        if self.estado == "Montevideo":
-            self.mtvd.eliminar_avion(self)
         
     def reinsertarse(self, posicion):
         # 1) Insertar en la fila en la posición calculada

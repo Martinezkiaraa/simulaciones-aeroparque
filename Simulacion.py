@@ -51,17 +51,11 @@ def simular_con_historia(lambda_por_min, minutos, seed=42, dia_ventoso = True, m
         # Avanzar dinámica de todos los aviones
         for a in list(avs.aviones):
 
-            a.avanzar(minuto_actual=t, dt=1.0, hay_viento = dia_ventoso)
+            a.avanzar(minuto_actual=t, dt=1.0, hay_viento = dia_ventoso, metricas = metricas)
 
             # Detectar congestión: si está en fila/reinsertado y su velocidad < v_max
-            if a.estado == "En fila" or a.estado == "Reinsertado" and a.velocidad_actual < a.v_max:
+            if (a.estado in ["En fila", "Reinsertado"]) and a.velocidad_actual < a.v_max:
                 congestion[t] += 1
-
-            # Registrar si no aterrizó aún
-            if a.estado != "Aterrizó":
-                historia[a.id]["t"].append(t)
-                historia[a.id]["x"].append(a.distancia_mn_aep)
-                historia[a.id]["estado"].append(a.estado)
 
             # Si aterrizó, lo quitamos de la fila
             if a.estado == "Aterrizó":
@@ -69,27 +63,30 @@ def simular_con_historia(lambda_por_min, minutos, seed=42, dia_ventoso = True, m
                 historia[a.id]["estado"].append(a.estado)
                 metricas.registrar_aterrizaje()
                 avs.eliminar_avion(a)
+            
+            # Registrar si no aterrizó aún
+            if a.estado != "Aterrizó":
+                historia[a.id]["t"].append(t)
+                historia[a.id]["x"].append(a.distancia_mn_aep)
+                historia[a.id]["estado"].append(a.estado)
         
         for d in list(desviados.aviones):
             desvios_fila[t] += 1
-            d.avanzar(minuto_actual = t, dt = 1.0, hay_viento = dia_ventoso)
+            d.avanzar(minuto_actual = t, dt = 1.0, hay_viento = dia_ventoso, metricas = metricas)
             if d.estado == "Reinsertado":
-                metricas.registrar_reinsercion()
+                metricas.registrar_reinsercion(d.id)
             
         for av in list(montevideo.aviones):
-            desvios_montevideo[t] += 1
-            av.avanzar(minuto_actual=t, dt=1.0, hay_viento = dia_ventoso)
-            metricas.registrar_desvio_montevideo()
-            historia[a.id]["t"].append(t)
-            historia[a.id]["estado"].append(a.estado)
+            #desvios_montevideo[t] += 1
+            historia[av.id]["t"].append(t)
+            historia[av.id]["estado"].append(av.estado)
         
         for r in list(rio.aviones):
             desvios_rio[t] += 1
-            r.avanzar(minuto_actual=t, dt=1.0, hay_viento = dia_ventoso)
-            metricas.registrar_desvio_rio
+            r.avanzar(minuto_actual=t, dt=1.0, hay_viento = dia_ventoso, metricas = metricas)
 
-    total_en_vuelo = len(avs.aviones) + len(desviados.aviones) + len(rio.aviones)
-    metricas.en_vuelo(total_en_vuelo)
+    metricas.en_vuelo(len(avs.aviones) + len(desviados.aviones) + len(rio.aviones))
+
     return {
     "historia": historia,
     "congestion": congestion,
