@@ -19,7 +19,6 @@ def run_simulacion(lambda_por_min, minutos=1080, seed=None):
     return avs.aviones
 
 
-
 def simular_con_historia(lambda_por_min, minutos, seed=42, dia_ventoso = True, metricas = None):
 
     if seed is not None:
@@ -45,7 +44,7 @@ def simular_con_historia(lambda_por_min, minutos, seed=42, dia_ventoso = True, m
             a = plane(id=next_id, minuto_aparicion=t, fila=avs, desviados= desviados, mtvd = montevideo, rio = rio)
             metricas.registrar_aviones()
             avs.agregar_avion(a)
-            historia[a.id] = {"t": [], "x": [], "estado": []}
+            historia[a.id] = {"t": [], "x": [], "v": [], "estado": []}
             next_id += 1
 
         # Avanzar dinámica de todos los aviones
@@ -68,6 +67,7 @@ def simular_con_historia(lambda_por_min, minutos, seed=42, dia_ventoso = True, m
             if a.estado != "Aterrizó":
                 historia[a.id]["t"].append(t)
                 historia[a.id]["x"].append(a.distancia_mn_aep)
+                historia[a.id]["v"].append(a.velocidad_actual)
                 historia[a.id]["estado"].append(a.estado)
         
         for d in list(desviados.aviones):
@@ -77,7 +77,7 @@ def simular_con_historia(lambda_por_min, minutos, seed=42, dia_ventoso = True, m
                 metricas.registrar_reinsercion(d.id)
             
         for av in list(montevideo.aviones):
-            #desvios_montevideo[t] += 1
+            desvios_montevideo[t] += 1
             historia[av.id]["t"].append(t)
             historia[av.id]["estado"].append(av.estado)
         
