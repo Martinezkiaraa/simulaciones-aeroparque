@@ -1,62 +1,80 @@
+import numpy as np
 import pandas as pd
 from simulacion import simular_con_historia
 from analisis import (
     analizar_congestion,
     analizar_montevideo,
-    analizar_rio,                 # PARTE 5
+    analizar_rio,
+    analizar_tormenta,
     calcular_atraso_promedio,
     tiempo_ideal
 )
 
 # ============================================================
-# PARTE 4 Y 5: CORRER EXPERIMENTOS PARA VARIOS λ
+# PARTE 4, 5 y 6: CORRER EXPERIMENTOS PARA VARIOS λ
 # ============================================================
 
-def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = {}, dia_ventoso = True):
-    # CALCULA EL TIEMPO IDEAL (SIN CONGESTIÓN) PARA USAR COMO BASELINE
+def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = {}, dia_ventoso = True, hay_tormenta = False):
+    """
+    Corre simulaciones Monte Carlo para una lista de valores de λ.
+    
+    Parámetros:
+    - lambdas: lista de tasas de arribo λ (aviones por minuto)
+    - n_rep: cantidad de repeticiones por λ
+    - minutos: duración de cada simulación (por defecto 18h = 1080 min)
+    - metricas_lambda: diccionario {λ: objeto MetricasSimulacion()}
+    - dia_ventoso: si True, existe probabilidad de go-around al río (parte 5)
+    - hay_tormenta: si True, se simula un cierre de AEP por 30 min (parte 6)
+    
+    Devuelve:
+    - DataFrame con resultados agregados de cada repetición
+    """
     t_ideal = tiempo_ideal()
-    # LISTA DONDE SE VAN A GUARDAR LOS RESULTADOS DE TODAS LAS REPETICIONES
     resultados = []
     
-    # RECORRE CADA VALOR DE λ QUE QUEREMOS SIMULAR
+    # RECORRE CADA VALOR DE λ 
     for lam in lambdas:
-        # OBTIENE EL OBJETO DE MÉTRICAS ASOCIADO A ESTE λ
         metrica_ = metricas_lambda[lam]
 
-        # CORRE N_REP VECES LA SIMULACIÓN PARA ESTE λ
+        # REPITE LA SIMULACIÓN n_rep VECES
         for rep in range(n_rep):
-            # EJECUTA UNA SIMULACIÓN DE MONTE CARLO COMPLETA
             sim_data = simular_con_historia(
-                lambda_por_min = lam,
-                dia_ventoso = dia_ventoso,
-                minutos = minutos,
-                metricas = metrica_
-            )
+            lambda_por_min = lam,
+            minutos = minutos,
+            dia_ventoso = dia_ventoso,
+            inicio_tormenta = None,  # o un número si querés simular tormenta
+            metricas = metrica_
+        )
 
-            # CALCULA ESTADÍSTICAS DE CONGESTIÓN (PARTE 4)
+
+            # ESTADÍSTICAS DE CONGESTIÓN
             congestion_stats = analizar_congestion(sim_data["congestion"])
             
-            # CALCULA ESTADÍSTICAS DE DESVÍOS A MONTEVIDEO (PARTE 4)
+            # ESTADÍSTICAS DE DESVÍOS A MONTEVIDEO
             montevideo_stats = analizar_montevideo(sim_data["desvios_montevideo"])
             
-            # CALCULA ESTADÍSTICAS DE DESVÍOS AL RÍO (PARTE 5)
-            rio_stats = analizar_rio(sim_data["desvios_rio"])
+            # ESTADÍSTICAS DE DESVÍOS POR VIENTO (PARTE 5)
+            viento_stats = analizar_rio(sim_data["desvios_viento"])
+
+            # ESTADÍSTICAS DE DESVÍOS POR TORMENTA (PARTE 6)
+            tormenta_stats = analizar_tormenta(sim_data.get("desvios_tormenta", {}))
             
-            # CALCULA ATRASO PROMEDIO RESPECTO AL TIEMPO IDEAL (PARTE 4 y 5)
+            # ATRASO PROMEDIO RESPECTO AL TIEMPO IDEAL
             atraso_prom = calcular_atraso_promedio(sim_data["historia"], t_ideal)
 
-            # GUARDA LOS RESULTADOS DE ESTA REPETICIÓN EN UNA FILA
+            # GUARDA RESULTADOS DE ESTA REPETICIÓN
             resultados.append({
-                "lambda": lam,                          # λ usado
-                "rep": rep,                             # número de repetición
-                "congestion_prom": congestion_stats["promedio"],   # congestión promedio
-                "congestion_freq": congestion_stats["frecuencia"], # frecuencia de congestión
-                "montevideo_prom": montevideo_stats["promedio"],   # desvío promedio
-                "montevideo_freq": montevideo_stats["frecuencia"], # frecuencia de desvíos
-                "rio_prom": rio_stats["promedio"],                 # NUEVO (parte 5)
-                "rio_freq": rio_stats["frecuencia"],               # NUEVO (parte 5)
-                "atraso_prom": atraso_prom                         # atraso promedio
+                "lambda": lam,
+                "rep": rep,
+                "congestion_prom": congestion_stats["promedio"],
+                "congestion_freq": congestion_stats["frecuencia"],
+                "montevideo_prom": montevideo_stats["promedio"],
+                "montevideo_freq": montevideo_stats["frecuencia"],
+                "rio_prom": viento_stats["promedio"],     
+                "rio_freq": viento_stats["frecuencia"],
+                "tormenta_prom": tormenta_stats["promedio"],
+                "tormenta_freq": tormenta_stats["frecuencia"],
+                "atraso_prom": atraso_prom
             })
-
-    # DEVUELVE LOS RESULTADOS COMO UN DATAFRAME DE PANDAS
+    
     return pd.DataFrame(resultados)

@@ -4,11 +4,13 @@ from graficos import (
     plot_resumen_metricas,
     plot_error_estimacion,
     visualizar_simulacion_monte_carlo,
-    animar_simulacion_monte_carlo,
-    plot_comparacion_tiempos
+    #animar_simulacion_monte_carlo,
+    plot_comparacion_tiempos,
 )
 from simulacion import run_simulacion, simular_con_historia
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # para que no bloquee, usa backend no interactivo
 
 # ============================================================
 # PARTE 3 DE LA CONSIGNA
@@ -16,7 +18,7 @@ import numpy as np
 # USANDO SIMULACIÓN MONTE CARLO (CON λ = 1/60).
 # ============================================================
 
-def estimar_prob_5(n_sim=200_000, seed=42, dia_ventoso=False, metricas=MetricasSimulacion()):
+def estimar_prob_5(n_sim = 200_000, seed = 42):
     np.random.seed(seed)
     cuenta_5 = 0
     
@@ -48,19 +50,30 @@ if __name__ == "__main__":
     print("=== EJERCICIO 1: Simulación Monte Carlo ===")
     print("Ejecutando simulación detallada con lambda = 0.1...")
     
-    # Simulación Monte Carlo detallada
-    # Reutilizamos simular_con_historia para obtener historia completa con velocidades
-    from Simulacion import simular_con_historia
-    datos_mc = simular_con_historia(lambda_por_min=0.1, minutos=200, seed=42, dia_ventoso=False, metricas=MetricasSimulacion())
+    datos_mc = simular_con_historia(
+        lambda_por_min = 0.1, 
+        minutos = 200, 
+        seed = 42, 
+        dia_ventoso = False, 
+        metricas = MetricasSimulacion()
+    )
     
+    print(f"Aviones finales registrados: {len(datos_mc['historia'])}")
     print("Generando visualizaciones...")
     
-    # Visualización estática (x vs t y v vs t)
-    #visualizar_simulacion_monte_carlo(datos_mc, mostrar_ultimos_minutos=100)
+    # VISUALIZACIÓN ESTÁTICA
+    visualizar_simulacion_monte_carlo(datos_mc, mostrar_ultimos_minutos = 20)
     
+    ''' 
+    # VISUALIZACIÓN ANIMADA (opcional, más lenta)
     print("Generando animación...")
-    #anim = animar_simulacion_monte_carlo({"historia": datos_mc["historia"]}, mostrar_ultimos_minutos=100, intervalo=200)
-    
+    anim = animar_simulacion_monte_carlo(
+        {"datos_visualizacion": {"tiempos": list(range(200)), "posiciones": []}},
+        mostrar_ultimos_minutos=100,
+        intervalo=200
+    )
+    '''
+
     print("=== FIN EJERCICIO 1 ===\n")
     
     # --------------------------------------------------------
@@ -81,7 +94,8 @@ if __name__ == "__main__":
     lambdas = [0.02, 0.1, 0.2, 0.5, 1]
     metricas_lambdas = {lam: MetricasSimulacion() for lam in lambdas}
 
-    df = correr_experimentos(lambdas, n_rep = 2000, dia_ventoso = False, metricas_lambda = metricas_lambdas)
+    # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
+    df = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = False, metricas_lambda = metricas_lambdas)
     df.to_csv("resultados_simulacion.csv", index = False)
 
     for m in metricas_lambdas:
@@ -101,17 +115,38 @@ if __name__ == "__main__":
 
     print("=== EJERCICIO 5: Atrasos y desvíos con distintos λ CON día ventoso ===")
 
+    lambdas = [0.02, 0.1, 0.2, 0.5, 1]
     metricas_lambdas_ventoso = {lam: MetricasSimulacion() for lam in lambdas}
 
-    df_ventoso = correr_experimentos(lambdas, n_rep=2000, dia_ventoso=True, metricas_lambda=metricas_lambdas_ventoso)
-    df_ventoso.to_csv("resultados_simulacion_ventoso.csv", index=False)
+    # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
+    df_ventoso = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = True, metricas_lambda = metricas_lambdas_ventoso)
+    df_ventoso.to_csv("resultados_simulacion_ventoso.csv", index = False)
 
     for m in metricas_lambdas_ventoso:
         print(metricas_lambdas_ventoso[m].resumen())
 
     plot_resumen_metricas(df_ventoso)
     plot_comparacion_tiempos(df_ventoso)
-    plot_error_estimacion(df_ventoso, "rio_freq", "SEM de frecuencia de desvíos al Río")
-    plot_error_estimacion(df_ventoso, "atraso_prom", "SEM de atraso promedio")
 
     print("=== FIN EJERCICIO 5 ===\n")
+
+    # --------------------------------------------------------
+    # PARTE 6: SIMULACIÓN CON TORMENTA (CIERRE SORPRESIVO AEP)
+    # --------------------------------------------------------
+    
+    print("=== EJERCICIO 6: Tormenta de 30 minutos ===")
+
+    lambdas = [0.02, 0.1, 0.2, 0.5, 1]
+    metricas_lambdas_tormenta = {lam: MetricasSimulacion() for lam in lambdas}
+
+    # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
+    df_tormenta = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = False, metricas_lambda = metricas_lambdas_tormenta)
+    df_tormenta.to_csv("resultados_simulacion_tormenta.csv", index = False)
+
+    for m in metricas_lambdas_tormenta:
+        print(metricas_lambdas_tormenta[m].resumen())
+
+    plot_resumen_metricas(df_tormenta)
+    plot_comparacion_tiempos(df_tormenta)
+
+    print("=== FIN EJERCICIO 6 ===\n")

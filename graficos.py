@@ -5,24 +5,29 @@ import pandas as pd
 from analisis import tiempo_ideal
 
 # ============================================================
-# PARTE 4 Y 5: GRÁFICO DE RESUMEN DE MÉTRICAS
+# PARTE 4, 5 y 6: GRÁFICO DE RESUMEN DE MÉTRICAS
 # ============================================================
 
 def plot_resumen_metricas(df: pd.DataFrame):
-    # AGRUPA LOS RESULTADOS POR λ Y CALCULA PROMEDIOS Y ERROR ESTÁNDAR
+    """
+    Muestra un resumen de métricas (congestión, desvíos y atrasos)
+    agrupado por λ, con promedio y error estándar.
+    """
     summary = df.groupby("lambda").agg(
-        congestion_freq_mean = ("congestion_freq", "mean"),
-        congestion_freq_sem = ("congestion_freq", "sem"),
-        montevideo_freq_mean = ("montevideo_freq", "mean"),
-        montevideo_freq_sem = ("montevideo_freq", "sem"),
-        rio_freq_mean=("rio_freq", "mean"),  # PARTE 5
-        rio_freq_sem=("rio_freq", "sem"),    # PARTE 5
-        atraso_prom_mean = ("atraso_prom", "mean"),
-        atraso_prom_sem = ("atraso_prom", "sem"),
+        congestion_freq_mean=("congestion_freq", "mean"),
+        congestion_freq_sem=("congestion_freq", "sem"),
+        montevideo_freq_mean=("montevideo_freq", "mean"),
+        montevideo_freq_sem=("montevideo_freq", "sem"),
+        rio_freq_mean=("rio_freq", "mean"),      # Parte 5
+        rio_freq_sem=("rio_freq", "sem"),
+        tormenta_freq_mean=("tormenta_freq", "mean"),  # Parte 6
+        tormenta_freq_sem=("tormenta_freq", "sem"),
+        atraso_prom_mean=("atraso_prom", "mean"),
+        atraso_prom_sem=("atraso_prom", "sem"),
     ).reset_index()
 
-    # CREA CUATRO SUBGRÁFICOS: CONGESTIÓN, MONTEVIDEO, RÍO Y ATRASO
-    fig, axes = plt.subplots(1, 4, figsize = (20, 4))
+    # 5 SUBGRÁFICOS: congestión, Montevideo, Río, Tormenta y atraso
+    fig, axes = plt.subplots(1, 5, figsize=(25, 4))
 
     # 1) FRECUENCIA DE CONGESTIÓN
     axes[0].errorbar(summary["lambda"], summary["congestion_freq_mean"], yerr = summary["congestion_freq_sem"], marker = 'o')
@@ -38,20 +43,29 @@ def plot_resumen_metricas(df: pd.DataFrame):
     axes[1].set_ylabel("Frecuencia")
     axes[1].grid(True, alpha = 0.3)
 
-    # 3) FRECUENCIA DE DESVÍOS AL RÍO (PARTE 5)
+    # 3) FRECUENCIA DE DESVÍOS AL RÍO
     axes[2].errorbar(summary["lambda"], summary["rio_freq_mean"], yerr = summary["rio_freq_sem"], marker = 'o', color = "C3")
     axes[2].set_title("Frecuencia de desvíos al Río")
     axes[2].set_xlabel("Lambda (aviones/min)")
     axes[2].set_ylabel("Frecuencia")
     axes[2].grid(True, alpha = 0.3)
 
-    # 4) ATRASO PROMEDIO VS SIN CONGESTIÓN
-    axes[3].axhline(0, color = 'k', lw = 1, alpha = 0.4)
-    axes[3].errorbar(summary["lambda"], summary["atraso_prom_mean"], yerr = summary["atraso_prom_sem"], marker = 'o', color = "C2")
-    axes[3].set_title("Atraso promedio vs sin congestión")
+    # 4) FRECUENCIA DE DESVÍOS POR TORMENTA
+    axes[3].errorbar(summary["lambda"], summary["tormenta_freq_mean"],
+                     yerr = summary["tormenta_freq_sem"], marker = 'o', color = "C4")
+    axes[3].set_title("Desvíos por Tormenta (AEP cerrado)")
     axes[3].set_xlabel("Lambda (aviones/min)")
-    axes[3].set_ylabel("Minutos de atraso")
+    axes[3].set_ylabel("Frecuencia")
     axes[3].grid(True, alpha = 0.3)
+
+    # 5) ATRASO PROMEDIO
+    axes[4].axhline(0, color = 'k', lw = 1, alpha = 0.4)
+    axes[4].errorbar(summary["lambda"], summary["atraso_prom_mean"],
+                     yerr = summary["atraso_prom_sem"], marker = 'o', color = "C2")
+    axes[4].set_title("Atraso promedio vs sin congestión")
+    axes[4].set_xlabel("Lambda (aviones/min)")
+    axes[4].set_ylabel("Minutos de atraso")
+    axes[4].grid(True, alpha = 0.3)
 
     plt.tight_layout()
     plt.show()
@@ -62,7 +76,8 @@ def plot_resumen_metricas(df: pd.DataFrame):
 
 def plot_comparacion_tiempos(df: pd.DataFrame):
     """
-    GRAFICA EL TIEMPO REAL PROMEDIO VS EL TIEMPO IDEAL PARA CADA λ.
+    Grafica el tiempo real promedio vs el tiempo ideal (sin congestión)
+    para cada λ.
     """
     t0 = tiempo_ideal() # TIEMPO BASE SIN CONGESTIÓN
     summary = df.groupby("lambda").agg(
@@ -82,10 +97,13 @@ def plot_comparacion_tiempos(df: pd.DataFrame):
     plt.show()
 
 # ============================================================
-# PARTE 5: ERROR DE ESTIMACIÓN (SEM) DE MÉTRICAS
+# PARTE 4, 5 y 6: ERROR DE ESTIMACIÓN
 # ============================================================
 
 def plot_error_estimacion(df: pd.DataFrame, metrica: str, title: str):
+    """
+    Muestra el error estándar (SEM) de una métrica en función de λ.
+    """
     summary = df.groupby("lambda")[metrica].agg(["sem"]).reset_index()
     plt.plot(summary["lambda"], summary["sem"], marker = 'o')
     plt.xlabel("Lambda (aviones/min)")
@@ -115,10 +133,10 @@ def visualizar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos 
     todos_t, todos_x = [], []
     max_t = 0
     for _id, h in historia.items():
-        if len(h["t"]) == 0:
+        if len(h.get("t", [])) == 0 or len(h.get("x", [])) == 0:
             continue
         max_t = max(max_t, max(h["t"]))
-        idxs = [i for i, tt in enumerate(h["t"]) if tt >= max_t - mostrar_ultimos_minutos]
+        idxs = [i for i, tt in enumerate(h["t"]) if tt >= max_t - mostrar_ultimos_minutos and i < len(h["x"])]
         todos_t.extend([h["t"][i] for i in idxs])
         todos_x.extend([h["x"][i] for i in idxs])
     
@@ -134,8 +152,9 @@ def visualizar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos 
     aviones_ejemplo = list(historia.keys())[:10]
     for _id in aviones_ejemplo:
         h = historia.get(_id, None)
-        if h and len(h["t"]) > 0:
-            ax2.plot(h["t"], h["x"], alpha = 0.6, linewidth = 1)
+        if h and len(h.get("t", [])) > 0 and len(h.get("x", [])) > 0:
+            n = min(len(h["t"]), len(h["x"]))
+            ax2.plot(h["t"][:n], h["x"][:n], alpha = 0.6, linewidth = 1)
     ax2.set_xlabel("Tiempo (minutos)")
     ax2.set_ylabel("Distancia a AEP (mn)")
     ax2.set_title("Trayectorias (x vs t)")
@@ -145,8 +164,11 @@ def visualizar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos 
     ax_vel = ax2.twinx()
     for _id in aviones_ejemplo:
         h = historia.get(_id, None)
-        if h and len(h["t"]) > 0 and "v" in h:
-            ax_vel.plot(h["t"], h["v"], alpha = 0.5, linewidth = 1.0, linestyle = '--', color = 'C3')
+        if h and len(h.get("t", [])) > 0 and len(h.get("v", [])) > 0:
+            n = min(len(h["t"]), len(h["v"]))
+            ax_vel.plot(h["t"][:n], h["v"][:n],
+                        alpha = 0.5, linewidth = 1.0,
+                        linestyle = '--', color = 'C3')
     ax_vel.set_ylabel("Velocidad (kn)")
     
     plt.tight_layout()
@@ -189,7 +211,7 @@ def animar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos = 20
         "En fila": "blue",
         "Reinsertado": "green", 
         "Desviado": "orange",
-        "Viento": "red",
+        "Rio": "red",
         "Montevideo": "purple",
         "Aterrizó": "black"
     }
