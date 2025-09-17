@@ -12,8 +12,11 @@ class MetricasSimulacion:
         self.desvios_montevideo = 0
         self.volando = 0
 
-        self.desvios_rio = 0
-        self.desvios_totales = 0
+        self.desvios_viento = 0
+        self.desvios_tormenta = 0
+        self.desvio_viento_tormenta = 0
+
+        self.desvios_totales = 0 #ESTO SE USA?
 
     def registrar_aterrizaje(self, cantidad=1):
         self.aterrizajes += cantidad
@@ -31,9 +34,14 @@ class MetricasSimulacion:
     def registrar_desvio_montevideo(self, cantidad=1):
         self.desvios_montevideo += cantidad
 
-    def registrar_desvio_rio(self, cantidad=1):
-        self.desvios_rio+=cantidad
+    def registrar_desvio_viento(self, cantidad=1):
+        self.desvios_viento+=cantidad
     
+    def registrar_desvio_tormenta(self, cantidad=1):
+        self.desvios_tormenta+=cantidad
+
+    def registrar_desvio_viento_tormenta(self, cantidad=1):
+        self.desvios_viento_tormenta+=cantidad
     
     def resumen(self):
         return {
@@ -42,7 +50,9 @@ class MetricasSimulacion:
             "desvios_montevideo": self.desvios_montevideo,
             "aviones": self.aviones,
             "en vuelo": self.volando,
-            "desvios_rio_totales": self.desvios_rio,
+            "desvios_viento_totales": self.desvios_viento,
+            "desvios_tormenta_totales": self.desvios_tormenta,
+            "desvios_viento_tormenta_totales": self.desvio_viento_tormenta
         }
 
     def __repr__(self):

@@ -1,7 +1,7 @@
 from experimentos import correr_experimentos
 from analisis import MetricasSimulacion
 from graficos import plot_resumen_metricas, plot_error_estimacion, visualizar_simulacion_monte_carlo, animar_simulacion_monte_carlo, plot_comparacion_tiempos
-from simulacion import run_simulacion
+from Simulacion import run_simulacion
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     
     # Simulación Monte Carlo detallada
     # Reutilizamos simular_con_historia para obtener historia completa con velocidades
-    from simulacion import simular_con_historia
+    from Simulacion import simular_con_historia
     datos_mc = simular_con_historia(lambda_por_min=0.1, minutos=200, seed=42, dia_ventoso=False, metricas=MetricasSimulacion())
     
     print("Generando visualizaciones...")

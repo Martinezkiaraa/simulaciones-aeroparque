@@ -3,7 +3,7 @@ import random
 
 
 class plane:
-    def __init__(self, id, minuto_aparicion, fila, desviados, mtvd, rio):
+    def __init__(self, id, minuto_aparicion, fila, desviados, mtvd, viento, tormenta, tormenta_viento):
         self.id = id 
         self.estado = "En fila"
         self.minuto_aparicion = minuto_aparicion
@@ -16,7 +16,9 @@ class plane:
         self.fila = fila
         self.desviados = desviados
         self.mtvd = mtvd
-        self.rio = rio
+        self.viento = viento
+        self.tormenta = tormenta
+        self.tormenta_viento = tormenta_viento
 
     def _eta(self, dist_mn, vel_kn):
         # minutos hasta AEP con velocidad actual
@@ -41,7 +43,7 @@ class plane:
         else:
             self.v_min, self.v_max = 120, 150
 
-    def avanzar(self, minuto_actual: int = None, dt: float = 1.0, hay_viento = True, metricas = None):
+    def avanzar(self, minuto_actual: int = None, dt: float = 1.0, hay_viento = True, metricas = None, esta_cerrado = False):
         # 1) Actualizar límites de tramo
         self.calcular_rango_velocidad()
 
@@ -88,27 +90,35 @@ class plane:
             if self.distancia_mn_aep <= 5.0:
                 
                 p_evento = 0.1 if hay_viento else 0.0
-                
-                #VEMOS SI HAY UNA INTERRUPCIÓN DE ATERRIZAJE
-                if random.random() < p_evento:
-                    self.estado = "Rio"
-                    metricas.registrar_desvio_rio()
-                    self.velocidad_actual = 200.0
-                    lider = self.next 
-                    ind = self.fila.get_index(self)
-                    self.next = None
-                    self.fila.eliminar_avion(self)       # te vas de la fila
-                    self.rio.agregar_avion(self)
-                    if ind < len(self.fila.aviones):     # ojo: la lista ya se corrió a la izquierda
-                            seguidor = self.fila.aviones[ind]
-                            seguidor.next = lider
+                #esta_cerrado = inicio < t < fin
+                #VEMOS SI HAY UNA INTERRUPCIÓN DE ATERRIZAJE: POR VIENTO O POR TORMENTA (AEP CERRADO)
+                if random.random() < p_evento and esta_cerrado:
+                    self.estado = "Interrupcion por tormenta y viento"
+                    metricas.registrar_desvio_viento_tormenta()
+                    self.tormenta_viento.agregar_avion(self)
+                elif esta_cerrado:
+                    self.estado = "Interrupcion_tormenta"
+                    metricas.registrar_desvio_tormenta()
+                    self.tormenta.agregar_avion(self)
                 else:
-                    self.distancia_mn_aep = 0.0 # ASUMIMOS QUE SI NO ESTA EN UN DIA VENTOSO Y ESTA A MENOS DE 5MN ENTONCES ATERRIZA CON EXITO
-                    self.estado = "Aterrizó" 
-                    if self.landed_minute is None and minuto_actual is not None:
-                        self.landed_minute = minuto_actual
+                    self.estado = "Interrupcion_viento"
+                    metricas.registrar_desvio_viento()
+                    self.viento.agregar_avion(self)
+                self.velocidad_actual = 200.0
+                lider = self.next 
+                ind = self.fila.get_index(self)
+                self.next = None
+                self.fila.eliminar_avion(self)       # te vas de la fila
+                if ind < len(self.fila.aviones):     # ojo: la lista ya se corrió a la izquierda
+                        seguidor = self.fila.aviones[ind]
+                        seguidor.next = lider
             else:
-                self.estado = "En fila"
+                self.distancia_mn_aep = 0.0 # ASUMIMOS QUE SI NO ESTA EN UN DIA VENTOSO Y ESTA A MENOS DE 5MN ENTONCES ATERRIZA CON EXITO
+                self.estado = "Aterrizó" 
+                if self.landed_minute is None and minuto_actual is not None:
+                    self.landed_minute = minuto_actual
+        else:
+            self.estado = "En fila"
 
             # Mantener orden en la fila si corresponde
             self.fila.actualizar_orden()
@@ -120,7 +130,7 @@ class plane:
             return
 
         # 4) Desviado: outbound a 200 kn y reintentos de reinserción
-        if self.estado == "Desviado" or self.estado == "Rio":
+        if self.estado == "Desviado" or self.estado == "Interrupcion_viento" or self.estado == "Interrupcion_tormenta" or self.estado == "Interrupcion por tormenta y viento":
             # Intentar reinsertar 
             posicion = self.buscar_gap()
             
@@ -145,7 +155,7 @@ class plane:
                     if (self.estado == "Desviado"):
                         self.desviados.eliminar_avion(self)
                     else:
-                        self.rio.eliminar_avion(self)
+                        self.viento.eliminar_avion(self)
                     self.estado = "Montevideo"
                     self.mtvd.agregar_avion(self)
                     metricas.registrar_desvio_montevideo()
@@ -157,7 +167,7 @@ class plane:
         if (self.estado == "Desviado"):
             self.desviados.eliminar_avion(self)
         else:
-            self.rio.eliminar_avion(self)
+            self.viento.eliminar_avion(self)
         # 2) Actualizar punteros de liderazgo localmente
         leader = self.fila.aviones[posicion - 1] if posicion > 0 else None
         self.next = leader  # el insertado ve como líder al que queda adelante

@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from simulacion import simular_con_historia
+from Simulacion import simular_con_historia
 from analisis import analizar_congestion, analizar_montevideo, calcular_atraso_promedio, tiempo_ideal
 
 def correr_experimentos(lambdas, n_rep=100, minutos=1080, metricas_lambda = {}, dia_ventoso = True):

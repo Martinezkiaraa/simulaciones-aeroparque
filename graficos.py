@@ -99,7 +99,7 @@ def visualizar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos=
         "En fila": "blue",
         "Reinsertado": "green", 
         "Desviado": "orange",
-        "Rio": "red",
+        "Viento": "red",
         "Montevideo": "purple",
         "Aterrizó": "black"
     }
@@ -167,7 +167,7 @@ def animar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos=200,
         "En fila": "blue",
         "Reinsertado": "green", 
         "Desviado": "orange",
-        "Rio": "red",
+        "Viento": "red",
         "Montevideo": "purple",
         "Aterrizó": "black"
     }
