@@ -1,55 +1,82 @@
 import numpy as np
 
+# ============================================================
+# ENUNCIADO / SOPORTE GENERAL
+# ESTA CLASE GUARDA TODAS LAS MÉTRICAS DE LA SIMULACIÓN
+# ============================================================
+
 class MetricasSimulacion:
     def __init__(self):
+        
+        # CONTADOR DE ATERRIZAJES
         self.aterrizajes = 0
-
+        
+        # CONTADOR DE AVIONES GENERADOS
         self.aviones = 0
-
+        
+        # CONTADOR DE REINSERCIONES EN LA FILA
         self.reinserciones = 0
+        
+        # CONJUNTO DE IDs DE AVIONES QUE SE REINSERTARON (PARA NO REPETIR)
         self.reinserciones_unicas = set() 
-
+        
+        # CONTADOR DE DESVÍOS A MONTEVIDEO
         self.desvios_montevideo = 0
+        
+        # CONTADOR DE AVIONES QUE QUEDAN VOLANDO AL FINAL DE LA SIMULACIÓN
         self.volando = 0
-
+        
+        # CONTADOR DE DESVÍOS AL RÍO (INTERRUPCIONES, PARTES 4 Y 5)
         self.desvios_rio = 0
-        self.desvios_totales = 0
 
-    def registrar_aterrizaje(self, cantidad=1):
+    # REGISTRAR ATERRIZAJE
+    def registrar_aterrizaje(self, cantidad = 1):
         self.aterrizajes += cantidad
-
-    def registrar_aviones(self, cantidad=1):
+    
+    # REGISTRAR NUEVOS AVIONES GENERADOS
+    def registrar_aviones(self, cantidad = 1):
         self.aviones += cantidad
     
+    # GUARDAR CANTIDAD DE AVIONES QUE QUEDAN EN VUELO AL FINAL
     def en_vuelo(self, cantidad):
-        self.volando+=cantidad
+        self.volando += cantidad
 
+     # REGISTRAR UNA REINSERCIÓN (CUANDO UN AVIÓN SE REINSERTA EN LA FILA)
     def registrar_reinsercion(self, id_avion):
         self.reinserciones += 1
         self.reinserciones_unicas.add(id_avion)
 
-    def registrar_desvio_montevideo(self, cantidad=1):
+     # REGISTRAR DESVÍO A MONTEVIDEO
+    def registrar_desvio_montevideo(self, cantidad = 1):
         self.desvios_montevideo += cantidad
 
-    def registrar_desvio_rio(self, cantidad=1):
-        self.desvios_rio+=cantidad
+    # REGISTRAR DESVÍO AL RÍO (INTERRUPCIÓN DE ATERRIZAJE, PARTES 4 Y 5)
+    def registrar_desvio_rio(self, cantidad = 1):
+        self.desvios_rio += cantidad
     
-    
+    # DEVOLVER UN RESUMEN DE TODAS LAS MÉTRICAS (PARA INFORME)
     def resumen(self):
         return {
             "aterrizajes": self.aterrizajes,
             "reinserciones": self.reinserciones,
             "desvios_montevideo": self.desvios_montevideo,
+            "desvios_rio": self.desvios_rio,
             "aviones": self.aviones,
             "en vuelo": self.volando,
-            "desvios_rio_totales": self.desvios_rio,
         }
 
+    # REPRESENTACIÓN DE TEXTO (ÚTIL PARA DEBUG)
     def __repr__(self):
-        return f"<Métricas: aterrizajes={self.aterrizajes}, reinserciones={self.reinserciones}, desvíos={self.desvios_montevideo}>"
+        return f"<Métricas: aterrizajes={self.aterrizajes}, reinserciones={self.reinserciones}, desvíos_mvd={self.desvios_montevideo}, desvíos_rio={self.desvios_rio}>"
 
+# ============================================================
+# PARTE 4 Y 5: FUNCIONES DE ANÁLISIS DE MÉTRICAS
+# ============================================================
 
-# Ejercicio 4
+# ANALIZA LA CONGESTIÓN:
+# SE CONSIDERA CONGESTIÓN SI UN AVIÓN VUELA MÁS LENTO QUE SU VMAX.
+# DEVUELVE FRECUENCIA (PROPORCIÓN DE MINUTOS CON CONGESTIÓN)
+# Y PROMEDIO (CUÁNTOS AVIONES CONGESTIONADOS POR MINUTO EN PROMEDIO).
 
 def analizar_congestion(congestion):
     minutos_totales = len(congestion)
@@ -58,12 +85,30 @@ def analizar_congestion(congestion):
     promedio = sum(congestion.values()) / minutos_totales
     return {"frecuencia": frecuencia, "promedio": promedio}
 
+# ANALIZA DESVÍOS A MONTEVIDEO:
+# DEVUELVE FRECUENCIA (PROPORCIÓN DE MINUTOS CON ALGÚN DESVÍO)
+# Y PROMEDIO (CUÁNTOS AVIONES DESVIADOS POR MINUTO EN PROMEDIO).
+
 def analizar_montevideo(desvios):
     minutos = len(desvios)
     minutos_con_desvio = sum(1 for c in desvios.values() if c > 0)
     frecuencia = minutos_con_desvio / minutos
     promedio = sum(desvios.values()) / minutos
     return {"frecuencia": frecuencia, "promedio": promedio}
+
+# ANALIZA DESVÍOS AL RÍO (INTERRUPCIONES DE ATERRIZAJE, PARTES 4 Y 5):
+# DEVUELVE FRECUENCIA Y PROMEDIO COMO EN LOS OTROS CASOS.
+
+def analizar_rio(desvios):
+    minutos = len(desvios)
+    minutos_con_desvio = sum(1 for c in desvios.values() if c > 0)
+    frecuencia = minutos_con_desvio / minutos
+    promedio = sum(desvios.values()) / minutos
+    return {"frecuencia": frecuencia, "promedio": promedio}
+
+# CALCULA EL ATRASO PROMEDIO:
+# COMPARA TIEMPO REAL DE VUELO VS TIEMPO IDEAL (SIN CONGESTIÓN).
+# DEVUELVE CUÁNTOS MINUTOS EXTRA TARDARON LOS AVIONES EN PROMEDIO.
 
 def calcular_atraso_promedio(historia, t_ideal):
     atrasos = []
@@ -78,6 +123,10 @@ def calcular_atraso_promedio(historia, t_ideal):
         t_real = minuto_aterrizo - minuto_aparicion
         atrasos.append(t_real - t_ideal)
     return np.mean(atrasos) if atrasos else 0.0
+
+# CALCULA EL TIEMPO IDEAL (SIN CONGESTIÓN):
+# SUMA LOS TIEMPOS DE RECORRER CADA TRAMO A VELOCIDAD VMAX.
+# SE USA COMO BASELINE PARA COMPARAR CONTRA EL TIEMPO REAL.
 
 def tiempo_ideal():
     tramos = [(50, 500), (35, 300), (10, 250), (5, 150)]

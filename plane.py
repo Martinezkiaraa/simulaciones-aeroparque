@@ -1,24 +1,35 @@
 from typing import Optional
 import random
 
+# ============================================================
+# ENUNCIADO / PARTE 1
+# CLASE QUE REPRESENTA A CADA AVIÓN EN LA SIMULACIÓN
+# ============================================================
+
 class plane:
     def __init__(self, id, minuto_aparicion, fila, desviados, mtvd, rio):
         self.id = id 
-        self.estado = "En fila"
+        self.estado = "En fila"             # ESTADO INICIAL
         self.minuto_aparicion = minuto_aparicion
-        self.distancia_mn_aep = 100.0   # millas náuticas a AEP
-        self.velocidad_actual = 300.0   # nudos (mn/h)
-        self.landed_minute = None
-        self.next: Optional["plane"] = None   # avión que tengo adelante
+        self.distancia_mn_aep = 100.0       # ENUNCIADO: APARECE A 100 MN DE AEP
+        self.velocidad_actual = 300.0       # VELOCIDAD INICIAL
+        self.landed_minute = None           # MINUTO DE ATERRIZAJE
+        self.next: Optional["plane"] = None # AVIÓN LÍDER INMEDIATO EN LA FILA
         self.v_max = 0.0
         self.v_min = 0.0
+        self.tiempo_en_min_aep = None       # ETA, SE ACTUALIZA EN avanzar()
+        # REFERENCIAS A LAS DIFERENTES FILAS/HEAPS
         self.fila = fila
         self.desviados = desviados
         self.mtvd = mtvd
         self.rio = rio
 
+    # ========================================================
+    # ENUNCIADO / PARTE 1
+    # CALCULA EL ETA (MINUTOS HASTA LLEGAR A AEP) A VELOCIDAD DADA
+    # ========================================================
+    
     def _eta(self, dist_mn, vel_kn):
-        # minutos hasta AEP con velocidad actual
         return dist_mn / (vel_kn / 60.0)
 
     def distancia_AEP(self):
@@ -27,6 +38,11 @@ class plane:
     def velocidad(self):
         return self.velocidad_actual
     
+    # ========================================================
+    # ENUNCIADO / PARTE 1
+    # DEFINE EL RANGO DE VELOCIDADES PERMITIDO SEGÚN DISTANCIA
+    # ========================================================
+
     def calcular_rango_velocidad(self):
         d = self.distancia_mn_aep
         if d > 100:
@@ -40,31 +56,40 @@ class plane:
         else:
             self.v_min, self.v_max = 120, 150
 
+    # ========================================================
+    # ENUNCIADO / PARTE 1, 4 y 5
+    # AVANZA EL ESTADO DEL AVIÓN UN MINUTO (DINÁMICA COMPLETA)
+    # ========================================================
+    
     def avanzar(self, minuto_actual: int = None, dt: float = 1.0, hay_viento = True, metricas = None):
-        # 1) Actualizar límites de tramo
+        # ACTUALIZA VMIN Y VMAX SEGÚN TRAMO
         self.calcular_rango_velocidad()
 
-        # 2) Inbound: aplicar reglas si está en fila
+        # ----------------------------------------------------
+        # CASO 1: AVIÓN EN FILA O REINSERTADO
+        # ----------------------------------------------------
+        
         if self.estado == "En fila" or self.estado == "Reinsertado":
 
-            # Si hay líder válido, aplicar regla líder−20 / buffer 5
+            # SI TIENE LÍDER ADELANTE, APLICAR LA REGLA DE SEPARACIÓN
             if self.next is not None and self.next.estado == "En fila":
                 eta_self = self._eta(self.distancia_mn_aep, self.velocidad_actual)
                 eta_next = self._eta(self.next.distancia_AEP(), self.next.velocidad())
-                gap = eta_self - eta_next  # seguidor - líder
+                gap = eta_self - eta_next  # DIFERENCIA DE ETA EN MINUTOS
     
                 if gap < 4.0:
-                    # seguidor = vel_líder − 20; si cae por debajo de v_min → desvío
+                    # SI GAP < 4 → REDUZCO VELOCIDAD A VEL_LÍDER - 20
                     nueva_v = self.next.velocidad() - 20.0
                     if nueva_v < self.v_min:
+                        # SI ESO CAE DEBAJO DE VMIN → DESVÍO A OUTBOUND
                         idx = self.fila.get_index(self)      # guardá tu índice antes de sacar
                         leader = self.next                   # guardá quién era tu líder
                         self.estado = "Desviado"
-                        self.velocidad_actual = 200.0 # outbound
+                        self.velocidad_actual = 200.0        # outbound
                         self.fila.eliminar_avion(self)       # te vas de la fila
                         self.desviados.agregar_avion(self)
                         self.next = None                     # vos ya no tenés líder
-                        # actualizar el seguidor (si existe): ahora su líder pasa a ser 'leader'
+                        # EL SEGUIDOR, SI EXISTE, AHORA PASA A SEGUIR AL LÍDER ORIGINAL
                         if idx < len(self.fila.aviones):     # ojo: la lista ya se corrió a la izquierda
                             follower = self.fila.aviones[idx]
                             follower.next = leader  
@@ -73,22 +98,22 @@ class plane:
                         self.velocidad_actual = nueva_v
 
                 elif gap >= 5.0:
-                    # colchón logrado: volver inmediatamente a vmax del tramo
+                    # SI GAP ≥ 5 → VOLVER A VMAX
                     self.velocidad_actual = self.v_max
-                # si 4 <= gap < 5, mantenemos la velocidad_actual
+                # SI 4 <= GAP < 5 → MANTIENE VELOCIDAD
             else:
-                # sin líder: ir a techo del tramo
+                # SI NO TIENE LÍDER → VMAX
                 self.velocidad_actual = self.v_max
 
-            # Avanzar hacia AEP este minuto
+            # AVANZA DISTANCIA HACIA AEP
             self.distancia_mn_aep = max(0.0, self.distancia_mn_aep - (self.velocidad_actual / 60.0) * dt)
             self.tiempo_en_min_aep = self._eta(self.distancia_mn_aep, self.velocidad_actual)
             
+            # CUANDO ESTÁ A MENOS DE 5 MN → INTENTA ATERRIZAR
             if self.distancia_mn_aep <= 5.0:
-                
                 p_evento = 0.1 if hay_viento else 0.0
                 
-                #VEMOS SI HAY UNA INTERRUPCIÓN DE ATERRIZAJE
+                # PARTE 4 y 5: INTERRUPCIÓN (GO-AROUND HACIA EL RÍO)
                 if random.random() < p_evento:
                     self.estado = "Rio"
                     metricas.registrar_desvio_rio()
@@ -96,36 +121,43 @@ class plane:
                     lider = self.next 
                     ind = self.fila.get_index(self)
                     self.next = None
-                    self.fila.eliminar_avion(self)       # te vas de la fila
+                    self.fila.eliminar_avion(self)
                     self.rio.agregar_avion(self)
-                    if ind < len(self.fila.aviones):     # ojo: la lista ya se corrió a la izquierda
+                    if ind < len(self.fila.aviones):
                             seguidor = self.fila.aviones[ind]
                             seguidor.next = lider
                 else:
-                    self.distancia_mn_aep = 0.0 # ASUMIMOS QUE SI NO ESTA EN UN DIA VENTOSO Y ESTA A MENOS DE 5MN ENTONCES ATERRIZA CON EXITO
+                    # SI NO HAY VIENTO → ATERRIZA
+                    self.distancia_mn_aep = 0.0
                     self.estado = "Aterrizó" 
                     if self.landed_minute is None and minuto_actual is not None:
                         self.landed_minute = minuto_actual
             else:
                 self.estado = "En fila"
 
-            # Mantener orden en la fila si corresponde
+            # REORDENA LA FILA
             self.fila.actualizar_orden()
             return
 
-        # 3) Aterrizado: nada que hacer
+        # ----------------------------------------------------
+        # CASO 2: YA ATERRIZÓ
+        # ----------------------------------------------------
+
         if self.estado == "Aterrizó":
             self.fila.eliminar_avion(self)
             return
 
-        # 4) Desviado: outbound a 200 kn y reintentos de reinserción
+        # ----------------------------------------------------
+        # CASO 3: DESVIADO O RÍO (OUTBOUND)
+        # ----------------------------------------------------
+        
         if self.estado == "Desviado" or self.estado == "Rio":
-            # Intentar reinsertar 
+            # BUSCAR UN GAP ≥ 10 MIN PARA REINSERTARSE 
             posicion = self.buscar_gap()
             
             if posicion is not None:
 
-                #Lo integro a la fila
+                # SI HAY GAP → SE REINSERTA
                 self.reinsertarse(posicion)
 
                 # Velocidad de reingreso: usar tu perfil y respetar límites del tramo
@@ -138,9 +170,10 @@ class plane:
                 return
             
             else:
-                # Si no hay gap, seguir saliendo a 200 kn (= 200/60 mn por minuto)
+                # SI NO HAY GAP → SIGUE SALIENDO OUTBOUND A 200 KN
                 self.distancia_mn_aep += (200.0 / 60.0) * dt
                 if self.distancia_mn_aep >= 100.0:
+                    # SI YA PASÓ 100 MN → SE VA A MONTEVIDEO
                     if (self.estado == "Desviado"):
                         self.desviados.eliminar_avion(self)
                     else:
@@ -149,46 +182,49 @@ class plane:
                     self.mtvd.agregar_avion(self)
                     metricas.registrar_desvio_montevideo()
                 return
+
+    # ========================================================
+    # PARTE 4
+    # REINSERCIÓN DEL AVIÓN EN LA FILA EN LA POSICIÓN CALCULADA
+    # ========================================================
         
     def reinsertarse(self, posicion):
-        # 1) Insertar en la fila en la posición calculada
         self.fila.aviones.insert(posicion, self)
         if (self.estado == "Desviado"):
             self.desviados.eliminar_avion(self)
         else:
             self.rio.eliminar_avion(self)
-        # 2) Actualizar punteros de liderazgo localmente
+        # ACTUALIZA PUNTEROS LÍDER Y SEGUIDOR
         leader = self.fila.aviones[posicion - 1] if posicion > 0 else None
         self.next = leader  # el insertado ve como líder al que queda adelante
-        # el que queda detrás del insertado ahora ve al insertado como líder
         if posicion + 1 < len(self.fila.aviones):
             follower = self.fila.aviones[posicion + 1]
             follower.next = self
 
+    # ========================================================
+    # PARTE 4
+    # BUSCA GAPS ≥ 10 MINUTOS ENTRE AVIONES PARA REINSERTARSE
+    # ========================================================
+    
     def buscar_gap(self):
-        """
-        Busca un gap >= 10 minutos en la fila.
-        Devuelve la posición donde el avión puede reinsertarse.
-        Si no hay gap, devuelve None.
-        """
         self.fila.actualizar_orden()
         largo = len(self.fila.aviones)
 
-        # Recorremos TODOS los pares adyacentes: (0,1), (1,2), ... (largo-2, largo-1)
-        for i in range(largo - 1):  # <- fix: antes estaba largo - 2 y te perdías el último par
+        # RECORRE TODOS LOS PARES ADYACENTES (AVIONES SEGUIDOS EN LA FILA)
+        for i in range(largo - 1):
             avion_a = self.fila.aviones[i]
             avion_b = self.fila.aviones[i + 1]
 
-            # ETAs con velocidades actuales
             eta_a = self._eta(avion_a.distancia_mn_aep, avion_a.velocidad_actual)
             eta_b = self._eta(avion_b.distancia_mn_aep, avion_b.velocidad_actual)
 
-            # gap >= 10 minutos
+            # SI GAP ≥ 10 → DEVUELVE POSICIÓN
             if self.estado == "Desviado" and eta_b - eta_a >= 10.0:
                 return i + 1  # posición donde insertarse (entre A y B)
             elif eta_b - eta_a >= 10.0 and self.distancia_mn_aep > 5.0:
                 return i + 1  # posición donde insertarse (entre A y B)
             
+        # SI NO ENCONTRÓ GAP INTERNO → CHEQUEA FINAL DE LA FILA
         if largo > 0:
             eta_1 = self._eta(self.distancia_mn_aep, self.velocidad_actual)
             eta_2 = self._eta(self.fila.aviones[-1].distancia_mn_aep, self.fila.aviones[-1].velocidad_actual)
@@ -199,5 +235,6 @@ class plane:
             else:
                 # Si ya salió (>100), que siga outbound; eventualmente "montevideo"
                 return None
-        else: #Si no hay nadie
+        else:
+            # SI LA FILA ESTÁ VACÍA → REINSERTARSE EN POSICIÓN 0
             return 0
