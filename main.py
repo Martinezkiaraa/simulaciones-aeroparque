@@ -5,14 +5,13 @@ from simulacion import run_simulacion
 import numpy as np
 import matplotlib.pyplot as plt
 
-# EJERCICIO 3 ACOMODAR RUN_SIMULACION
 
-def estimar_prob_5(n_sim=200_000, seed=42):
+def estimar_prob_5(n_sim=200_000, seed=42, dia_ventoso=False, metricas=MetricasSimulacion()):
     np.random.seed(seed)
     cuenta_5 = 0
     
     for i in range(n_sim):
-        aviones = run_simulacion(lambda_por_min=1/60, minutos=60, seed=seed+i)
+        aviones = simular_con_historia(lambda_por_min=1/60, minutos=60, seed=seed+i, dia_ventoso=False, metricas=metricas)
         if len(aviones) == 5:
             cuenta_5 += 1
     
@@ -32,15 +31,14 @@ if __name__ == "__main__":
     from simulacion import simular_con_historia
     datos_mc = simular_con_historia(lambda_por_min=0.1, minutos=200, seed=42, dia_ventoso=False, metricas=MetricasSimulacion())
     
-    print(f"Aviones finales: {datos_mc['aviones_finales']}")
     print("Generando visualizaciones...")
     
     # Visualización estática (x vs t y v vs t)
-    visualizar_simulacion_monte_carlo(datos_mc, mostrar_ultimos_minutos=100)
+    #visualizar_simulacion_monte_carlo(datos_mc, mostrar_ultimos_minutos=100)
     
     # Visualización animada (opcional - comentar si es muy lenta)
     print("Generando animación...")
-    anim = animar_simulacion_monte_carlo({"historia": datos_mc["historia"]}, mostrar_ultimos_minutos=100, intervalo=200)
+    #anim = animar_simulacion_monte_carlo({"historia": datos_mc["historia"]}, mostrar_ultimos_minutos=100, intervalo=200)
     
     print("=== FIN EJERCICIO 1 ===\n")
     
