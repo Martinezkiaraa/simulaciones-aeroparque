@@ -1,7 +1,6 @@
 from typing import Optional
 import random
 
-
 class plane:
     def __init__(self, id, minuto_aparicion, fila, desviados, mtvd, rio):
         self.id = id 
