@@ -51,7 +51,7 @@ def run_simulacion(lambda_por_min, minutos = 1080, seed = None):
 # ============================================================
 
 def simular_con_historia(lambda_por_min, minutos, seed = 42, dia_ventoso = True,
-                         inicio_tormenta = None, duracion_tormenta = 30, metricas = None):
+                         inicio_tormenta = None, metricas = None):
 
     if seed is not None:
         random.seed(seed)
@@ -74,6 +74,9 @@ def simular_con_historia(lambda_por_min, minutos, seed = 42, dia_ventoso = True,
     desvios_viento = {t: 0 for t in range(minutos)}
     desvios_tormenta = {t: 0 for t in range(minutos)}  
     desvios_tormenta_viento = {t: 0 for t in range(minutos)} 
+
+    # EJERCICIO 6 
+    duracion_tormenta = 30
 
     # RECORRE TODOS LOS MINUTOS DE SIMULACIÓN
     for t in range(minutos):

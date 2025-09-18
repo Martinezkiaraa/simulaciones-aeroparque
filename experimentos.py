@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import random
 from simulacion import simular_con_historia
 from analisis import (
     analizar_congestion,
@@ -31,6 +32,12 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
     """
     t_ideal = tiempo_ideal()
     resultados = []
+
+    if hay_tormenta:
+        inicio_tormenta = random.uniform(0,1080)
+        print(f"======== La tormenta iniciará en el tiempo ======= {inicio_tormenta}")
+    else:
+        inicio_tormenta = None
     
     # RECORRE CADA VALOR DE λ 
     for lam in lambdas:
@@ -42,9 +49,8 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
             lambda_por_min = lam,
             minutos = minutos,
             dia_ventoso = dia_ventoso,
-            inicio_tormenta = None,  # o un número si querés simular tormenta
-            metricas = metrica_
-        )
+            inicio_tormenta = inicio_tormenta,  # o un número si querés simular tormenta
+            metricas = metrica_)
 
             # ESTADÍSTICAS DE CONGESTIÓN
             congestion_stats = analizar_congestion(sim_data["congestion"])

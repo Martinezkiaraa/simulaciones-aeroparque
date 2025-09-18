@@ -1,10 +1,11 @@
 from experimentos import correr_experimentos
 from analisis import MetricasSimulacion
+import matplotlib
+matplotlib.use('Agg')
 from graficos import (
     plot_resumen_metricas,
     plot_error_estimacion,
     visualizar_simulacion_monte_carlo,
-    #animar_simulacion_monte_carlo,
     plot_comparacion_tiempos,
 )
 from simulacion import run_simulacion, simular_con_historia
@@ -115,7 +116,6 @@ if __name__ == "__main__":
 
     print("=== EJERCICIO 5: Atrasos y desvíos con distintos λ CON día ventoso ===")
 
-    lambdas = [0.02, 0.1, 0.2, 0.5, 1]
     metricas_lambdas_ventoso = {lam: MetricasSimulacion() for lam in lambdas}
 
     # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
@@ -134,13 +134,12 @@ if __name__ == "__main__":
     # PARTE 6: SIMULACIÓN CON TORMENTA (CIERRE SORPRESIVO AEP)
     # --------------------------------------------------------
     
-    print("=== EJERCICIO 6: Tormenta de 30 minutos ===")
+    print("=== EJERCICIO 6: Solo tormenta de 30 minutos ===")
 
-    lambdas = [0.02, 0.1, 0.2, 0.5, 1]
     metricas_lambdas_tormenta = {lam: MetricasSimulacion() for lam in lambdas}
 
     # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
-    df_tormenta = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = False, metricas_lambda = metricas_lambdas_tormenta)
+    df_tormenta = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = False, metricas_lambda = metricas_lambdas_tormenta, hay_tormenta = True)
     df_tormenta.to_csv("resultados_simulacion_tormenta.csv", index = False)
 
     for m in metricas_lambdas_tormenta:
@@ -148,5 +147,17 @@ if __name__ == "__main__":
 
     plot_resumen_metricas(df_tormenta)
     plot_comparacion_tiempos(df_tormenta)
+
+    print("=== EJERCICIO 6: Viento y tormenta de 30 minutos ===")
+    
+    metricas_lambdas_tormenta_viento = {lam: MetricasSimulacion() for lam in lambdas}
+
+    # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
+    df_tormenta_viento = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = True, metricas_lambda = metricas_lambdas_tormenta_viento, hay_tormenta = True)
+    df_tormenta_viento.to_csv("resultados_simulacion_tormenta.csv", index = False)
+
+    for m in metricas_lambdas_tormenta_viento:
+        print(metricas_lambdas_tormenta_viento[m].resumen())
+
 
     print("=== FIN EJERCICIO 6 ===\n")
