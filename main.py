@@ -1,17 +1,14 @@
 from experimentos import correr_experimentos
-from analisis import MetricasSimulacion
-import matplotlib
-matplotlib.use('Agg')
+from analisis import MetricasSimulacion, IC_globales
+import pandas as pd
+#matplotlib.use('Agg')
 from graficos import (
-    plot_resumen_metricas,
-    plot_error_estimacion,
-    visualizar_simulacion_monte_carlo,
-    plot_comparacion_tiempos,
-)
+    plot_desvios_y_congestion,
+    animar_con_estelas,
+    plot_comparacion_tiempos)
 from simulacion import run_simulacion, simular_con_historia
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")  # para que no bloquee, usa backend no interactivo
+#matplotlib.use("Agg")  # para que no bloquee, usa backend no interactivo
 
 # ============================================================
 # PARTE 3 DE LA CONSIGNA
@@ -62,18 +59,7 @@ if __name__ == "__main__":
     print(f"Aviones finales registrados: {len(datos_mc['historia'])}")
     print("Generando visualizaciones...")
     
-    # VISUALIZACIÓN ESTÁTICA
-    visualizar_simulacion_monte_carlo(datos_mc, mostrar_ultimos_minutos = 20)
-    
-    ''' 
-    # VISUALIZACIÓN ANIMADA (opcional, más lenta)
-    print("Generando animación...")
-    anim = animar_simulacion_monte_carlo(
-        {"datos_visualizacion": {"tiempos": list(range(200)), "posiciones": []}},
-        mostrar_ultimos_minutos=100,
-        intervalo=200
-    )
-    '''
+    animar_con_estelas(datos_mc["historia"], minutos=200, tail=20)
 
     print("=== FIN EJERCICIO 1 ===\n")
     
@@ -96,18 +82,28 @@ if __name__ == "__main__":
     metricas_lambdas = {lam: MetricasSimulacion() for lam in lambdas}
 
     # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
-    df = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = False, metricas_lambda = metricas_lambdas)
+    df = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = False, metricas_lambda = metricas_lambdas, seed = 2025)
     df.to_csv("resultados_simulacion.csv", index = False)
+
+    data = []
+    for l in lambdas:
+        m = metricas_lambdas[l]
+        data.append({
+            "lambda": l,
+            "desvios_montevideo": m.desvios_montevideo})
+
+    df_resultados = pd.DataFrame(data)
 
     for m in metricas_lambdas:
         print(metricas_lambdas[m].resumen())
 
-    plot_resumen_metricas(df)
-    plot_comparacion_tiempos(df)
-    plot_error_estimacion(df, "congestion_freq", "SEM de frecuencia de congestión")
-    plot_error_estimacion(df, "montevideo_freq", "SEM de frecuencia de desvíos a Montevideo")
-    plot_error_estimacion(df, "atraso_prom", "SEM de atraso promedio")
+    #GRÁFICOS DE CONGESTIÓN Y CANTIDAD DE AVIONES A MONTEVIDEO POR LAMBDA
+    plot_desvios_y_congestion(df_resultados,df)
+    print(IC_globales(df))
 
+    #ATRASO CON Y SIN CONGESTIÓN
+    plot_comparacion_tiempos(df)
+    
     print("=== FIN EJERCICIO 4 ===\n") 
 
     # --------------------------------------------------------
@@ -125,7 +121,6 @@ if __name__ == "__main__":
     for m in metricas_lambdas_ventoso:
         print(metricas_lambdas_ventoso[m].resumen())
 
-    plot_resumen_metricas(df_ventoso)
     plot_comparacion_tiempos(df_ventoso)
 
     print("=== FIN EJERCICIO 5 ===\n")
@@ -145,19 +140,6 @@ if __name__ == "__main__":
     for m in metricas_lambdas_tormenta:
         print(metricas_lambdas_tormenta[m].resumen())
 
-    plot_resumen_metricas(df_tormenta)
     plot_comparacion_tiempos(df_tormenta)
-
-    print("=== EJERCICIO 6: Viento y tormenta de 30 minutos ===")
-    
-    metricas_lambdas_tormenta_viento = {lam: MetricasSimulacion() for lam in lambdas}
-
-    # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
-    df_tormenta_viento = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = True, metricas_lambda = metricas_lambdas_tormenta_viento, hay_tormenta = True)
-    df_tormenta_viento.to_csv("resultados_simulacion_tormenta.csv", index = False)
-
-    for m in metricas_lambdas_tormenta_viento:
-        print(metricas_lambdas_tormenta_viento[m].resumen())
-
 
     print("=== FIN EJERCICIO 6 ===\n")

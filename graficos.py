@@ -3,72 +3,11 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 import pandas as pd
 from analisis import tiempo_ideal
+import seaborn as sns
 
 # ============================================================
 # PARTE 4, 5 y 6: GRÁFICO DE RESUMEN DE MÉTRICAS
 # ============================================================
-
-def plot_resumen_metricas(df: pd.DataFrame):
-    """
-    Muestra un resumen de métricas (congestión, desvíos y atrasos)
-    agrupado por λ, con promedio y error estándar.
-    """
-    summary = df.groupby("lambda").agg(
-        congestion_freq_mean=("congestion_freq", "mean"),
-        congestion_freq_sem=("congestion_freq", "sem"),
-        montevideo_freq_mean=("montevideo_freq", "mean"),
-        montevideo_freq_sem=("montevideo_freq", "sem"),
-        viento_freq_mean=("viento_freq", "mean"),
-        viento_freq_sem=("viento_freq", "sem"),
-        tormenta_freq_mean=("tormenta_freq", "mean"),  # Parte 6
-        tormenta_freq_sem=("tormenta_freq", "sem"),
-        atraso_prom_mean=("atraso_prom", "mean"),
-        atraso_prom_sem=("atraso_prom", "sem"),
-    ).reset_index()
-
-    # 5 SUBGRÁFICOS: congestión, Montevideo, Río, Tormenta y atraso
-    fig, axes = plt.subplots(1, 5, figsize=(25, 4))
-
-    # 1) FRECUENCIA DE CONGESTIÓN
-    axes[0].errorbar(summary["lambda"], summary["congestion_freq_mean"], yerr = summary["congestion_freq_sem"], marker = 'o')
-    axes[0].set_title("Frecuencia de congestión")
-    axes[0].set_xlabel("Lambda (aviones/min)")
-    axes[0].set_ylabel("Frecuencia")
-    axes[0].grid(True, alpha = 0.3)
-
-    # 2) FRECUENCIA DE DESVÍOS A MONTEVIDEO
-    axes[1].errorbar(summary["lambda"], summary["montevideo_freq_mean"], yerr = summary["montevideo_freq_sem"], marker = 'o', color = "C1")
-    axes[1].set_title("Frecuencia de desvíos a Montevideo")
-    axes[1].set_xlabel("Lambda (aviones/min)")
-    axes[1].set_ylabel("Frecuencia")
-    axes[1].grid(True, alpha = 0.3)
-
-    # 3) FRECUENCIA DE DESVÍOS POR VIENTO
-    axes[2].errorbar(summary["lambda"], summary["viento_freq_mean"], yerr = summary["viento_freq_sem"], marker = 'o', color = "C3")
-    axes[2].set_title("Frecuencia de desvíos por viento (go-around)")
-    axes[2].set_xlabel("Lambda (aviones/min)")
-    axes[2].set_ylabel("Frecuencia")
-    axes[2].grid(True, alpha = 0.3)
-
-    # 4) FRECUENCIA DE DESVÍOS POR TORMENTA
-    axes[3].errorbar(summary["lambda"], summary["tormenta_freq_mean"],
-                     yerr = summary["tormenta_freq_sem"], marker = 'o', color = "C4")
-    axes[3].set_title("Desvíos por Tormenta (AEP cerrado)")
-    axes[3].set_xlabel("Lambda (aviones/min)")
-    axes[3].set_ylabel("Frecuencia")
-    axes[3].grid(True, alpha = 0.3)
-
-    # 5) ATRASO PROMEDIO
-    axes[4].axhline(0, color = 'k', lw = 1, alpha = 0.4)
-    axes[4].errorbar(summary["lambda"], summary["atraso_prom_mean"],
-                     yerr = summary["atraso_prom_sem"], marker = 'o', color = "C2")
-    axes[4].set_title("Atraso promedio vs sin congestión")
-    axes[4].set_xlabel("Lambda (aviones/min)")
-    axes[4].set_ylabel("Minutos de atraso")
-    axes[4].grid(True, alpha = 0.3)
-
-    plt.tight_layout()
-    plt.show()
 
 # ============================================================
 # PARTE 4: COMPARACIÓN TIEMPO REAL VS TIEMPO IDEAL
@@ -91,188 +30,44 @@ def plot_comparacion_tiempos(df: pd.DataFrame):
     plt.errorbar(summary["lambda"], summary["t_real_mean"], yerr = summary["atraso_prom_sem"], label = "Tiempo real promedio", marker = 'o')
     plt.xlabel("Lambda (aviones/min)")
     plt.ylabel("Tiempo (min)")
-    plt.title("Tiempo real vs ideal por lambda")
+    plt.title("Tiempo simulado de atraso promedio por avión vs ideal por lambda")
     plt.grid(True, alpha = 0.3)
     plt.legend()
     plt.show()
 
+# =================================================================
+# PARTE 4: CONGESTIÓN EN AVIONES ATERRIZADOS Y AVIONES A MONTEVIDEO
+# =================================================================
+
+def plot_desvios_y_congestion(metricas_, df):
+    """
+    Muestra dos gráficos lado a lado:
+    - Promedio de aviones desviados a Montevideo por lambda
+    - Congestión promedio por minuto de aviones que aterrizaron
+    Espera un DataFrame con columnas 'lambda', 'desvios_montevideo', 'congestion_prom'.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Gráfico de desvíos a Montevideo
+    sns.lineplot(data=metricas_, x="lambda", y="desvios_montevideo", errorbar=('ci', 95), marker="o", ax=axes[0])
+    axes[0].set_title("Promedio de aviones desviados a Montevideo por lambda")
+    axes[0].set_xlabel("Lambda (aviones/min)")
+    axes[0].set_ylabel("Desvíos a Montevideo (promedio)")
+    axes[0].grid(alpha=0.3)
+
+    # Gráfico de congestión
+    sns.lineplot(data=df, x="lambda", y="congestion_prom", errorbar=('ci', 95), marker="o", ax=axes[1])
+    axes[1].set_title("Congestión promedio por minuto de aviones que aterrizaron")
+    axes[1].set_xlabel("Lambda")
+    axes[1].set_ylabel("Minutos en congestión por avión")
+    axes[1].grid(alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+
+
 # ============================================================
 # PARTE 4, 5 y 6: ERROR DE ESTIMACIÓN
-# ============================================================
-
-def plot_error_estimacion(df: pd.DataFrame, metrica: str, title: str):
-    """
-    Muestra el error estándar (SEM) de una métrica en función de λ.
-    """
-    summary = df.groupby("lambda")[metrica].agg(["sem"]).reset_index()
-    plt.plot(summary["lambda"], summary["sem"], marker = 'o')
-    plt.xlabel("Lambda (aviones/min)")
-    plt.ylabel("Error de estimación (SEM)")
-    plt.title(title)
-    plt.grid(True, alpha = 0.3)
-    plt.show()
-
-# ============================================================
-# PARTE 1: VISUALIZACIÓN ESTÁTICA DE UNA SIMULACIÓN
-# ============================================================
-
-def visualizar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos = 100):
-    """
-    MUESTRA LA SIMULACIÓN:
-    - POSICIÓN DE AVIONES EN EL TIEMPO (DISPERSIÓN)
-    - TRAYECTORIAS INDIVIDUALES DE ALGUNOS AVIONES
-    - VELOCIDAD DE ESOS AVIONES EN EL TIEMPO
-    """
-    historia = datos_simulacion["historia"]
-    
-    # FIGURA CON 2 GRÁFICOS (POSICIONES + TRAYECTORIAS)
-    fig, axes = plt.subplots(2, 1, figsize = (12, 9))
-    
-    # 1) DISPERSIÓN (t vs distancia x)
-    ax1 = axes[0]
-    todos_t, todos_x = [], []
-    max_t = 0
-    for _id, h in historia.items():
-        if len(h.get("t", [])) == 0 or len(h.get("x", [])) == 0:
-            continue
-        max_t = max(max_t, max(h["t"]))
-        idxs = [i for i, tt in enumerate(h["t"]) if tt >= max_t - mostrar_ultimos_minutos and i < len(h["x"])]
-        todos_t.extend([h["t"][i] for i in idxs])
-        todos_x.extend([h["x"][i] for i in idxs])
-    
-    ax1.scatter(todos_t, todos_x, s = 10, alpha = 0.6, c = "C0")
-    ax1.set_xlabel("Tiempo (minutos)")
-    ax1.set_ylabel("Distancia a AEP (mn)")
-    ax1.set_title("Posiciones de aviones en el tiempo")
-    ax1.grid(True, alpha = 0.3)
-    ax1.invert_yaxis() # 0 ARRIBA = PISTA
-    
-    # 2) TRAYECTORIAS INDIVIDUALES DE ALGUNOS AVIONES (x vs t)
-    ax2 = axes[1]
-    aviones_ejemplo = list(historia.keys())[:10]
-    for _id in aviones_ejemplo:
-        h = historia.get(_id, None)
-        if h and len(h.get("t", [])) > 0 and len(h.get("x", [])) > 0:
-            n = min(len(h["t"]), len(h["x"]))
-            ax2.plot(h["t"][:n], h["x"][:n], alpha = 0.6, linewidth = 1)
-    ax2.set_xlabel("Tiempo (minutos)")
-    ax2.set_ylabel("Distancia a AEP (mn)")
-    ax2.set_title("Trayectorias (x vs t)")
-    ax2.grid(True, alpha = 0.3)
-    
-    # AGREGAR VELOCIDADES COMO LÍNEA DISCONTINUA
-    ax_vel = ax2.twinx()
-    for _id in aviones_ejemplo:
-        h = historia.get(_id, None)
-        if h and len(h.get("t", [])) > 0 and len(h.get("v", [])) > 0:
-            n = min(len(h["t"]), len(h["v"]))
-            ax_vel.plot(h["t"][:n], h["v"][:n],
-                        alpha = 0.5, linewidth = 1.0,
-                        linestyle = '--', color = 'C3')
-    ax_vel.set_ylabel("Velocidad (kn)")
-    
-    plt.tight_layout()
-    plt.show()
-
-# ============================================================
-# PARTE 1: ANIMACIÓN DE LA SIMULACIÓN
-# ============================================================
-
-def animar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos = 200, intervalo = 100):
-    """
-    CREA UNA ANIMACIÓN QUE MUESTRA:
-    - LA EVOLUCIÓN DE LA POSICIÓN DE LOS AVIONES EN EL TIEMPO
-    - LA DISTRIBUCIÓN ESPACIAL DE LOS AVIONES EN CADA INSTANTE
-    """
-    datos_viz = datos_simulacion["datos_visualizacion"]
-    
-    tiempos_mostrar = datos_viz["tiempos"][-mostrar_ultimos_minutos:]
-    posiciones_mostrar = datos_viz["posiciones"][-mostrar_ultimos_minutos:]
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (15, 6))
-    
-    # CONFIGURACIÓN DE EJES (ESTADO INICIAL)
-    ax1.set_xlim(min(tiempos_mostrar), max(tiempos_mostrar))
-    ax1.set_ylim(0, 100)
-    ax1.set_xlabel("Tiempo (minutos)")
-    ax1.set_ylabel("Distancia a AEP (mn)")
-    ax1.set_title("Evolución temporal de posiciones")
-    ax1.grid(True, alpha = 0.3)
-    
-    ax2.set_xlim(0, 100)
-    ax2.set_ylim(0, 20)
-    ax2.set_xlabel("Distancia a AEP (mn)")
-    ax2.set_ylabel("Cantidad de aviones")
-    ax2.set_title("Distribución espacial actual")
-    ax2.grid(True, alpha = 0.3)
-    
-    # COLORES SEGÚN ESTADO DEL AVIÓN (USADO EN DISPERSIÓN)
-    colores_estado = {
-        "En fila": "blue",
-        "Reinsertado": "green", 
-        "Desviado": "orange",
-        "Viento": "red",
-        "Montevideo": "purple",
-        "Aterrizó": "black",
-        "Tormenta": "brown",
-        "Tormenta+Viento": "magenta"
-    }
-    
-    # FUNCIONES DE INICIALIZACIÓN Y ACTUALIZACIÓN DEL FRAME
-    def init():
-        ax1.clear()
-        ax2.clear()
-        return ax1, ax2
-    
-    def update(frame):
-        ax1.clear()
-        ax2.clear()
-
-        # Subgráfico 1: dispersión t vs distancia
-        ax1.set_xlim(min(tiempos_mostrar), max(tiempos_mostrar))
-        ax1.set_ylim(0, 100)
-        ax1.set_xlabel("Tiempo (minutos)")
-        ax1.set_ylabel("Distancia a AEP (mn)")
-        ax1.set_title(f"Evolución temporal - Minuto {tiempos_mostrar[frame]}")
-        ax1.grid(True, alpha = 0.3)
-        
-        # Subgráfico 2: histograma de distancias
-        ax2.set_xlim(0, 100)
-        ax2.set_ylim(0, 20)
-        ax2.set_xlabel("Distancia a AEP (mn)")
-        ax2.set_ylabel("Cantidad de aviones")
-        ax2.set_title(f"Distribución espacial - Minuto {tiempos_mostrar[frame]}")
-        ax2.grid(True, alpha = 0.3)
-        
-        # Mostrar trayectorias hasta el frame actual
-        for t_idx in range(frame + 1):
-            t = tiempos_mostrar[t_idx]
-            posiciones = posiciones_mostrar[t_idx]
-            
-            for avion_data in posiciones:
-                id_avion, x, estado, velocidad = avion_data
-                color = colores_estado.get(estado, "gray")
-                alpha = 0.3 if t_idx < frame else 1.0
-                ax1.scatter(t, x, c = color, s = 20, alpha = alpha)
-        
-        # Mostrar distribución espacial actual
-        posiciones_actuales = posiciones_mostrar[frame]
-        distancias = [avion_data[1] for avion_data in posiciones_actuales]
-        if distancias:
-            ax2.hist(distancias, bins = 20, alpha = 0.7, color = 'skyblue', edgecolor = 'black')
-        
-        return ax1, ax2
-    
-    anim = FuncAnimation(fig, update, frames = len(tiempos_mostrar), 
-                        init_func = init, interval = intervalo, blit = False)
-    
-    plt.tight_layout()
-    plt.show()
-    
-    return anim
-
-# ============================================================
-# PARTE 1: AVIONES GENERADOS POR MINUTO
 # ============================================================
 
 def plot_aviones_por_minuto(aviones, minutos = 1080):
