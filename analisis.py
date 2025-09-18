@@ -16,10 +16,7 @@ class MetricasSimulacion:
         self.reinserciones = 0                # TOTAL DE REINSERCIONES
         self.reinserciones_unicas = set()     # IDs de aviones reinsertados
         self.desvios_montevideo = 0           # TOTAL DE DESVÍOS A MONTEVIDEO
-        self.desvios_rio = 0                  # DESVÍOS POR GO-AROUND (día ventoso)
-
-        # PARTE 5
-        # (Ya contemplado en desvios_rio)
+        self.desvios_viento = 0                  # DESVÍOS POR GO-AROUND (día ventoso)
 
         # PARTE 6
         self.desvios_tormenta = 0             # DESVÍOS POR TORMENTA (AEP cerrado)
@@ -43,8 +40,8 @@ class MetricasSimulacion:
     def registrar_desvio_montevideo(self, cantidad=1):
         self.desvios_montevideo += cantidad
 
-    def registrar_desvio_rio(self, cantidad=1):
-        self.desvios_rio += cantidad
+    def registrar_desvio_viento(self, cantidad=1):
+        self.desvios_viento += cantidad
 
     def registrar_desvio_tormenta(self, cantidad=1):
         self.desvios_tormenta += cantidad
@@ -65,7 +62,7 @@ class MetricasSimulacion:
             "en_vuelo": self.volando,
             "reinserciones": self.reinserciones,
             "desvios_montevideo": self.desvios_montevideo,
-            "desvios_rio": self.desvios_rio,
+            "desvios_viento": self.desvios_viento,
             "desvios_tormenta": self.desvios_tormenta,
             "desvios_tormenta_viento": self.desvios_tormenta_viento,
         }
@@ -76,7 +73,7 @@ class MetricasSimulacion:
         return (f"<Métricas: aterrizajes={self.aterrizajes}, "
                 f"reinserciones={self.reinserciones}, "
                 f"desv_mvd={self.desvios_montevideo}, "
-                f"desv_rio={self.desvios_rio}, "
+                f"desv_viento={self.desvios_viento}, "
                 f"desv_tormenta={self.desvios_tormenta}, "
                 f"desv_tormenta_viento={self.desvios_tormenta_viento}>")
 
@@ -110,10 +107,10 @@ def analizar_montevideo(desvios):
     promedio = sum(desvios.values()) / minutos
     return {"frecuencia": frecuencia, "promedio": promedio}
 
-def analizar_rio(desvios):
+def analizar_viento(desvios):
     """
     PARTE 5
-    Analiza desvíos al Río (go-around por viento).
+    Analiza desvíos por viento (go-around → trayectoria río).
     """
     minutos = len(desvios)
     minutos_con_desvio = sum(1 for c in desvios.values() if c > 0)

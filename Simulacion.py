@@ -161,7 +161,16 @@ def simular_con_historia(lambda_por_min, minutos, seed = 42, dia_ventoso = True,
             desvios_tormenta[t] += 1
             r.avanzar(t, dt = 1.0, hay_viento = dia_ventoso,
                       tormenta_activa = tormenta_activa, metricas = metricas)
-            
+        
+        # ----------------------------------------------
+        # ACTUALIZA AVIONES DESVIADOS POR TORMENTA_VIENTO
+        # ----------------------------------------------
+        
+        for tv in list(tormenta_viento.aviones):
+            desvios_tormenta_viento[t] += 1
+            tv.avanzar(t, dt = 1.0, hay_viento = dia_ventoso,
+                      tormenta_activa = tormenta_activa, metricas = metricas)
+        
         # ----------------------------------------------
         # ACTUALIZA AVIONES QUE YA SE FUERON A MONTEVIDEO
         # ----------------------------------------------
@@ -181,5 +190,6 @@ def simular_con_historia(lambda_por_min, minutos, seed = 42, dia_ventoso = True,
         "desvios_montevideo": desvios_montevideo,
         "desvios_fila": desvios_fila,
         "desvios_viento": desvios_viento,
-        "desvios_tormenta": desvios_tormenta
+        "desvios_tormenta": desvios_tormenta,
+        "desvios_tormenta_viento": desvios_tormenta_viento
 }

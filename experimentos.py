@@ -4,7 +4,7 @@ from simulacion import simular_con_historia
 from analisis import (
     analizar_congestion,
     analizar_montevideo,
-    analizar_rio,
+    analizar_viento,
     analizar_tormenta,
     calcular_atraso_promedio,
     tiempo_ideal
@@ -46,7 +46,6 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
             metricas = metrica_
         )
 
-
             # ESTADÍSTICAS DE CONGESTIÓN
             congestion_stats = analizar_congestion(sim_data["congestion"])
             
@@ -54,7 +53,7 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
             montevideo_stats = analizar_montevideo(sim_data["desvios_montevideo"])
             
             # ESTADÍSTICAS DE DESVÍOS POR VIENTO (PARTE 5)
-            viento_stats = analizar_rio(sim_data["desvios_viento"])
+            viento_stats = analizar_viento(sim_data["desvios_viento"])
 
             # ESTADÍSTICAS DE DESVÍOS POR TORMENTA (PARTE 6)
             tormenta_stats = analizar_tormenta(sim_data.get("desvios_tormenta", {}))
@@ -70,8 +69,8 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
                 "congestion_freq": congestion_stats["frecuencia"],
                 "montevideo_prom": montevideo_stats["promedio"],
                 "montevideo_freq": montevideo_stats["frecuencia"],
-                "rio_prom": viento_stats["promedio"],     
-                "rio_freq": viento_stats["frecuencia"],
+                "viento_prom": viento_stats["promedio"],     
+                "viento_freq": viento_stats["frecuencia"],
                 "tormenta_prom": tormenta_stats["promedio"],
                 "tormenta_freq": tormenta_stats["frecuencia"],
                 "atraso_prom": atraso_prom

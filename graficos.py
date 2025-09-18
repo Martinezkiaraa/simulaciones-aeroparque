@@ -18,8 +18,8 @@ def plot_resumen_metricas(df: pd.DataFrame):
         congestion_freq_sem=("congestion_freq", "sem"),
         montevideo_freq_mean=("montevideo_freq", "mean"),
         montevideo_freq_sem=("montevideo_freq", "sem"),
-        rio_freq_mean=("rio_freq", "mean"),      # Parte 5
-        rio_freq_sem=("rio_freq", "sem"),
+        viento_freq_mean=("viento_freq", "mean"),
+        viento_freq_sem=("viento_freq", "sem"),
         tormenta_freq_mean=("tormenta_freq", "mean"),  # Parte 6
         tormenta_freq_sem=("tormenta_freq", "sem"),
         atraso_prom_mean=("atraso_prom", "mean"),
@@ -43,9 +43,9 @@ def plot_resumen_metricas(df: pd.DataFrame):
     axes[1].set_ylabel("Frecuencia")
     axes[1].grid(True, alpha = 0.3)
 
-    # 3) FRECUENCIA DE DESVÍOS AL RÍO
-    axes[2].errorbar(summary["lambda"], summary["rio_freq_mean"], yerr = summary["rio_freq_sem"], marker = 'o', color = "C3")
-    axes[2].set_title("Frecuencia de desvíos al Río")
+    # 3) FRECUENCIA DE DESVÍOS POR VIENTO
+    axes[2].errorbar(summary["lambda"], summary["viento_freq_mean"], yerr = summary["viento_freq_sem"], marker = 'o', color = "C3")
+    axes[2].set_title("Frecuencia de desvíos por viento (go-around)")
     axes[2].set_xlabel("Lambda (aviones/min)")
     axes[2].set_ylabel("Frecuencia")
     axes[2].grid(True, alpha = 0.3)
@@ -211,9 +211,11 @@ def animar_simulacion_monte_carlo(datos_simulacion, mostrar_ultimos_minutos = 20
         "En fila": "blue",
         "Reinsertado": "green", 
         "Desviado": "orange",
-        "Rio": "red",
+        "Viento": "red",
         "Montevideo": "purple",
-        "Aterrizó": "black"
+        "Aterrizó": "black",
+        "Tormenta": "brown",
+        "Tormenta+Viento": "magenta"
     }
     
     # FUNCIONES DE INICIALIZACIÓN Y ACTUALIZACIÓN DEL FRAME
