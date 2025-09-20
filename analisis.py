@@ -107,9 +107,9 @@ def IC_globales(df):
     resumen = grouped.agg(["mean", "std", "count"]).reset_index()
 
     # Calcular error estándar y límites del intervalo de confianza al 95%
-    resumen["SE"] = resumen["std"] / np.sqrt(resumen["count"])
-    resumen["IC95_lower"] = resumen["mean"] - 1.96 * resumen["SE"]
-    resumen["IC95_upper"] = resumen["mean"] + 1.96 * resumen["SE"]
+    resumen["Error MonteCarlo"] = resumen["std"] / np.sqrt(resumen["count"])
+    resumen["IC95_lower"] = resumen["mean"] - 1.96 * resumen["Error MonteCarlo"]
+    resumen["IC95_upper"] = resumen["mean"] + 1.96 * resumen["Error MonteCarlo"]
 
     return resumen
 
@@ -175,6 +175,10 @@ def tiempo_ideal():
     Calcula el tiempo ideal (sin congestión, sin tormenta, sin viento),
     sumando tiempos de recorrer cada tramo a velocidad máxima.
     """
-    tramos = [(50, 500), (35, 300), (10, 250), (5, 150)]
+    tramos = [(50, 300), (35, 250), (10, 200), (5, 150)]
     total_minutos = sum(dist / (v / 60.0) for dist, v in tramos)
     return total_minutos
+
+def print_resumen(metricas_lambdas):
+     for m in metricas_lambdas:
+        print(metricas_lambdas[m].resumen())

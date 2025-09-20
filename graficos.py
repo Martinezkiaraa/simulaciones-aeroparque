@@ -40,16 +40,26 @@ def plot_comparacion_tiempos(df: pd.DataFrame):
 # =================================================================
 
 def plot_desvios_y_congestion(metricas_, df):
+    lambdas = [0.02, 0.1, 0.2, 0.5, 1]
     """
     Muestra dos gráficos lado a lado:
     - Promedio de aviones desviados a Montevideo por lambda
     - Congestión promedio por minuto de aviones que aterrizaron
     Espera un DataFrame con columnas 'lambda', 'desvios_montevideo', 'congestion_prom'.
     """
+
+    data = []
+    for l in lambdas:
+        m = metricas_[l]
+        data.append({
+            "lambda": l,
+            "desvios_montevideo": m.desvios_montevideo})
+    df_resultados = pd.DataFrame(data)
+
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
     # Gráfico de desvíos a Montevideo
-    sns.lineplot(data=metricas_, x="lambda", y="desvios_montevideo", errorbar=('ci', 95), marker="o", ax=axes[0])
+    sns.lineplot(data=df_resultados, x="lambda", y="desvios_montevideo", errorbar=('ci', 95), marker="o", ax=axes[0])
     axes[0].set_title("Promedio de aviones desviados a Montevideo por lambda")
     axes[0].set_xlabel("Lambda (aviones/min)")
     axes[0].set_ylabel("Desvíos a Montevideo (promedio)")
