@@ -140,7 +140,7 @@ if __name__ == "__main__":
     metricas_lambdas_tormenta = {lam: MetricasSimulacion() for lam in lambdas}
 
     # HAY QUE CAMBIAR N_REP A 2000, PERO PARA PROBAR TARDA MUCHO
-    df_tormenta = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = False, metricas_lambda = metricas_lambdas_tormenta)
+    df_tormenta = correr_experimentos(lambdas, n_rep = 50, dia_ventoso = False, hay_tormenta = True, metricas_lambda = metricas_lambdas_tormenta)
     df_tormenta.to_csv("resultados_simulacion_tormenta.csv", index = False)
 
     for m in metricas_lambdas_tormenta:

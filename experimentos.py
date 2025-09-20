@@ -31,6 +31,11 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
     """
     t_ideal = tiempo_ideal()
     resultados = []
+
+    if hay_tormenta:
+        inicio_tormenta = True
+    else:
+        inicio_tormenta = False
     
     # RECORRE CADA VALOR DE λ 
     for lam in lambdas:
@@ -42,7 +47,7 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
             lambda_por_min = lam,
             minutos = minutos,
             dia_ventoso = dia_ventoso,
-            inicio_tormenta = None,  # o un número si querés simular tormenta
+            inicio_tormenta = inicio_tormenta,
             metricas = metrica_
         )
 
