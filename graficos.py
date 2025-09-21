@@ -1,10 +1,10 @@
+from doctest import DocFileSuite
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import pandas as pd
-from analisis import tiempo_ideal, analizar_congestion_montevideo, analizar_congestion_promedio
+from analisis import tiempo_ideal, analizar_congestion_promedio
 import seaborn as sns
 import numpy as np
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 def animar_fila_radar(historia, minutos, tail):
     # Construyo por tiempo: lista de (id, distancia) en cada minuto
@@ -156,9 +156,11 @@ def plot_congestion_montevideo(df):
     import matplotlib.pyplot as plt
     import numpy as np
     import pandas as pd
+    from analisis import tiempo_ideal
 
     lambdas = sorted(df["lambda"].unique())
     resultados = []
+    t_ideal = tiempo_ideal()
 
     for lam, grupo in df.groupby("lambda"):
         aterrizados = 0
@@ -174,8 +176,31 @@ def plot_congestion_montevideo(df):
             desvios_sim = 0
             for avion in historia.values():
                 estado_final = avion["estado"][-1] if "estado" in avion and len(avion["estado"]) > 0 else None
-                minutos_cong = avion.get("min_congestion", 0)
-                atraso = avion.get("atraso", 0)
+                
+                # Calcular minutos de congestión usando la misma lógica que otras funciones
+                minutos_cong = 0
+                if "estado" in avion and "v" in avion and "vmax" in avion:
+                    for est, vel, vmax in zip(avion["estado"], avion["v"], avion["vmax"]):
+                        if est in ["En fila", "Reinsertado"] and vel < vmax:
+                            minutos_cong += 1
+                
+                # Calcular atraso usando la misma lógica que otras funciones
+                atraso = 0
+                if "t" in avion and len(avion["t"]) > 0:
+                    minuto_aparicion = avion["t"][0]
+                    if estado_final == "Aterrizó":
+                        idx = avion["estado"].index("Aterrizó")
+                        minuto_aterrizo = avion["t"][idx]
+                        t_real = minuto_aterrizo - minuto_aparicion
+                        atraso = t_real - t_ideal
+                    elif estado_final == "Montevideo":
+                        # Para aviones que van a Montevideo, calcular tiempo hasta que cambian a estado Montevideo
+                        idx = avion["estado"].index("Montevideo")
+                        minuto_montevideo = avion["t"][idx]
+                        t_real = minuto_montevideo - minuto_aparicion
+                        # El atraso es el tiempo real menos el tiempo ideal (sin congestión)
+                        atraso = t_real - t_ideal
+                
                 if estado_final == "Aterrizó":
                     aterrizados += 1
                     min_cong_aterrizados.append(minutos_cong)
@@ -239,6 +264,131 @@ def plot_congestion_montevideo(df):
     axs[1, 1].set_title("Frecuencia de desvíos a Montevideo")
     axs[1, 1].grid(alpha=0.3)
 
+    plt.tight_layout()
+    plt.show()
+
+def cambio_data(df):
+    from analisis import tiempo_ideal
+    import pandas as pd
+    import numpy as np
+    
+    lambdas = sorted(df["lambda"].unique())
+    resultados = []
+    t_ideal = tiempo_ideal()
+
+    for lam, grupo in df.groupby("lambda"):
+        aterrizados = 0
+        montevideo = 0
+        min_cong_aterrizados = []
+        atraso_aterrizados = []
+        freq_montevideo = 0
+
+        for historia in grupo["historia"]:
+            total_aviones = len(historia)
+            desvios_sim = 0
+            for avion in historia.values():
+                estado_final = avion["estado"][-1] if "estado" in avion and len(avion["estado"]) > 0 else None
+                # Calcular minutos de congestión usando la misma lógica que otras funciones
+                minutos_cong = 0
+                if "estado" in avion and "v" in avion and "vmax" in avion:
+                    for est, vel, vmax in zip(avion["estado"], avion["v"], avion["vmax"]):
+                        if est in ["En fila", "Reinsertado"] and vel < vmax:
+                            minutos_cong += 1
+                    
+                    # Calcular atraso usando la misma lógica que otras funciones
+                    atraso = 0
+                    if "t" in avion and len(avion["t"]) > 0:
+                        minuto_aparicion = avion["t"][0]
+                        if estado_final == "Aterrizó":
+                            idx = avion["estado"].index("Aterrizó")
+                            minuto_aterrizo = avion["t"][idx]
+                            t_real = minuto_aterrizo - minuto_aparicion
+                            atraso = t_real - t_ideal
+                
+                    if estado_final == "Aterrizó":
+                        aterrizados += 1
+                        min_cong_aterrizados.append(minutos_cong)
+                        atraso_aterrizados.append(atraso)
+                    elif estado_final == "Montevideo":
+                        montevideo += 1
+                        desvios_sim += 1
+                # Frecuencia de desvíos por simulación
+                if total_aviones > 0:
+                    freq_montevideo += desvios_sim / total_aviones
+
+        n_sim = len(grupo)
+        resultados.append({
+            "lambda": lam,
+            "aterrizajes": aterrizados / n_sim,
+            "desvios_montevideo": montevideo / n_sim,
+            "prom_min_cong_aterrizados": np.mean(min_cong_aterrizados) if min_cong_aterrizados else 0,
+            "atraso_aterrizados": np.mean(atraso_aterrizados) if atraso_aterrizados else 0,
+            "freq_montevideo": freq_montevideo / n_sim,
+            "montevideo": montevideo / n_sim
+        })
+    
+    return pd.DataFrame(resultados)
+
+def plot_comparacion_mejoras(df_sin_mejora, df_con_mejora):
+    """
+    Compara los resultados entre simulación sin mejoras y con mejoras.
+    Ambas simulaciones incluyen tormenta y viento.
+    
+    Parámetros:
+    - df_sin_mejora: DataFrame con resultados sin mejoras (mejora=False)
+    - df_con_mejora: DataFrame con resultados con mejoras (mejora=True)
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    df_sin_mejora = cambio_data(df_sin_mejora)
+    df_con_mejora = cambio_data(df_con_mejora)
+
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 10))
+    
+    # ==========================================
+    # GRÁFICO 1: Comparación de Aterrizajes
+    # ==========================================
+    resumen_aterrizajes_sin = df_sin_mejora.groupby("lambda")["aterrizajes"].agg(["mean", "std", "count"]).reset_index()
+    resumen_aterrizajes_sin["se"] = resumen_aterrizajes_sin["std"] / np.sqrt(resumen_aterrizajes_sin["count"])
+    
+    resumen_aterrizajes_con = df_con_mejora.groupby("lambda")["aterrizajes"].agg(["mean", "std", "count"]).reset_index()
+    resumen_aterrizajes_con["se"] = resumen_aterrizajes_con["std"] / np.sqrt(resumen_aterrizajes_con["count"])
+    
+    axes[0].errorbar(resumen_aterrizajes_sin["lambda"], resumen_aterrizajes_sin["mean"], 
+                      yerr=resumen_aterrizajes_sin["se"], marker='o', capsize=5, 
+                      color='red', label='Sin Mejoras', linewidth=2)
+    axes[0].errorbar(resumen_aterrizajes_con["lambda"], resumen_aterrizajes_con["mean"], 
+                      yerr=resumen_aterrizajes_con["se"], marker='s', capsize=5, 
+                      color='green', label='Con Mejoras', linewidth=2)
+    axes[0].set_title('Aterrizajes: Comparación con y sin Mejoras')
+    axes[0].set_xlabel('Lambda (aviones/min)')
+    axes[0].set_ylabel('Aterrizajes promedio por simulación')
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+    
+    # ==========================================
+    # GRÁFICO 2: Comparación de Desvíos a Montevideo
+    # ==========================================
+    resumen_montevideo_sin = df_sin_mejora.groupby("lambda")["montevideo"].agg(["mean", "std", "count"]).reset_index()
+    resumen_montevideo_sin["se"] = resumen_montevideo_sin["std"] / np.sqrt(resumen_montevideo_sin["count"])
+    
+    resumen_montevideo_con = df_con_mejora.groupby("lambda")["montevideo"].agg(["mean", "std", "count"]).reset_index()
+    resumen_montevideo_con["se"] = resumen_montevideo_con["std"] / np.sqrt(resumen_montevideo_con["count"])
+    
+    axes[1].errorbar(resumen_montevideo_sin["lambda"], resumen_montevideo_sin["mean"], 
+                      yerr=resumen_montevideo_sin["se"], marker='o', capsize=5, 
+                      color='red', label='Sin Mejoras', linewidth=2)
+    axes[1].errorbar(resumen_montevideo_con["lambda"], resumen_montevideo_con["mean"], 
+                      yerr=resumen_montevideo_con["se"], marker='s', capsize=5, 
+                      color='green', label='Con Mejoras', linewidth=2)
+    axes[1].set_title('Desvíos a Montevideo: Comparación con y sin Mejoras')
+    axes[1].set_xlabel('Lambda (aviones/min)')
+    axes[1].set_ylabel('Desvíos promedio por minuto')
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+    
     plt.tight_layout()
     plt.show()
 
