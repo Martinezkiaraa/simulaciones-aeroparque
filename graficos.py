@@ -802,3 +802,142 @@ def plot_analisis_completo_tormenta(df_normal, df_tormenta):
 
     plt.tight_layout()
     plt.show()
+
+def calcular_congestion_control_metrics(df_con_mejora):
+    """
+    Calcula métricas de congestión_control para el DataFrame con mejora.
+    """
+    import numpy as np
+    from analisis import calcular_congestion_total
+    
+    resultados = []
+    
+    for _, fila in df_con_mejora.iterrows():
+        if 'congestion_control' in fila:
+            congestion_control_stats = calcular_congestion_total(fila['congestion_control'])
+            resultados.append({
+                'lambda': fila['lambda'],
+                'frecuencia_congestion_control': congestion_control_stats['frecuencia_congestion'],
+                'congestion_control_promedio': congestion_control_stats['congestion_promedio'],
+                'congestion_control_maxima': congestion_control_stats['congestion_maxima']
+            })
+    
+    if not resultados:
+        return None
+    
+    df_control = pd.DataFrame(resultados)
+    
+    # Agrupar por lambda y calcular estadísticas
+    resumen_control = df_control.groupby("lambda").agg({
+        "frecuencia_congestion_control": ["mean", "std", "count"],
+        "congestion_control_promedio": ["mean", "std"],
+        "congestion_control_maxima": ["mean", "std"]
+    }).reset_index()
+    
+    # Aplanar nombres de columnas
+    resumen_control.columns = ['_'.join(col).strip() if col[1] else col[0] 
+                              for col in resumen_control.columns.values]
+    
+    # Calcular error estándar
+    for col in ['frecuencia_congestion_control', 'congestion_control_promedio', 'congestion_control_maxima']:
+        mean_col = f"{col}_mean"
+        std_col = f"{col}_std"
+        count_col = f"{col}_count" if col == 'frecuencia_congestion_control' else 'frecuencia_congestion_control_count'
+        
+        if mean_col in resumen_control.columns and std_col in resumen_control.columns:
+            resumen_control[f"{col}_se"] = resumen_control[std_col] / np.sqrt(resumen_control[count_col])
+    
+    return resumen_control
+
+def comparar_congestion(df_sin_mejora, df_con_mejora):
+    """
+    Compara la congestión de los aviones que aterrizan con y sin la mejora.
+    Genera gráficos comparativos de congestión incluyendo métricas de control.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from analisis import analizar_congestion_promedio
+    
+    # Calcular resúmenes de congestión para ambos DataFrames
+    resumen_sin = analizar_congestion_promedio(df_sin_mejora)
+    resumen_con = analizar_congestion_promedio(df_con_mejora)
+    
+    # Calcular métricas de congestión_control para el DataFrame con mejora
+    resumen_control = calcular_congestion_control_metrics(df_con_mejora)
+    
+    if resumen_sin is None or resumen_con is None:
+        print("No se pudieron calcular las métricas de congestión")
+        return
+    
+    # Crear figura con subplots
+    fig, axes = plt.subplots(1, 2, figsize=(15, 12))
+    
+    # ==========================================
+    # GRÁFICO 1: Frecuencia de congestión
+    # ==========================================
+    axes[0].errorbar(resumen_sin['lambda'], resumen_sin['frecuencia_congestion_mean'], 
+                      yerr=resumen_sin['frecuencia_congestion_se'], marker='o', capsize=5, 
+                      color='red', label='Sin mejora', linewidth=2)
+    axes[0].errorbar(resumen_con['lambda'], resumen_con['frecuencia_congestion_mean'], 
+                      yerr=resumen_con['frecuencia_congestion_se'], marker='s', capsize=5, 
+                      color='green', label='Con mejora', linewidth=2)
+    
+    # Agregar línea de congestión_control si está disponible
+    if resumen_control is not None:
+        axes[0].errorbar(resumen_control['lambda'], resumen_control['frecuencia_congestion_control_mean'], 
+                          yerr=resumen_control['frecuencia_congestion_control_se'], marker='^', capsize=5, 
+                          color='blue', label='Control (con mejora)', linewidth=2, linestyle='--')
+    
+    axes[0].set_title('Frecuencia de Congestión')
+    axes[0].set_xlabel('Lambda (aviones/min)')
+    axes[0].set_ylabel('Frecuencia de congestión')
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+    
+    # ==========================================
+    # GRÁFICO 2: Congestión máxima
+    # ==========================================
+    axes[1].errorbar(resumen_sin['lambda'], resumen_sin['congestion_maxima_mean'], 
+                      yerr=resumen_sin['congestion_maxima_se'], marker='o', capsize=5, 
+                      color='red', label='Sin mejora', linewidth=2)
+    axes[1].errorbar(resumen_con['lambda'], resumen_con['congestion_maxima_mean'], 
+                      yerr=resumen_con['congestion_maxima_se'], marker='s', capsize=5, 
+                      color='green', label='Con mejora', linewidth=2)
+    
+    # Agregar línea de congestión_control si está disponible
+    if resumen_control is not None:
+        axes[1].errorbar(resumen_control['lambda'], resumen_control['congestion_control_maxima_mean'], 
+                          yerr=resumen_control['congestion_control_maxima_se'], marker='^', capsize=5, 
+                          color='blue', label='Control (con mejora)', linewidth=2, linestyle='--')
+    
+    axes[1].set_title('Congestión Máxima')
+    axes[1].set_xlabel('Lambda (aviones/min)')
+    axes[1].set_ylabel('Congestión máxima')
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.suptitle('Comparación de Congestión: Con vs Sin Mejora', fontsize=16, y=1.02)
+    plt.show()
+    
+    # Mostrar resumen estadístico
+    print("\n=== RESUMEN ESTADÍSTICO ===")
+    print(f"{'Lambda':<8} {'Tipo':<15} {'Freq. Cong.':<12} {'Cong. Max.':<12}")
+    print("-" * 50)
+    
+    for lambda_val in sorted(set(resumen_sin['lambda']) | set(resumen_con['lambda'])):
+        # Sin mejora
+        if lambda_val in resumen_sin['lambda'].values:
+            fila_sin = resumen_sin[resumen_sin['lambda'] == lambda_val].iloc[0]
+            print(f"{lambda_val:<8.2f} {'Sin mejora':<15} {fila_sin['frecuencia_congestion_mean']:<12.3f} {fila_sin['congestion_maxima_mean']:<12.3f}")
+        
+        # Con mejora
+        if lambda_val in resumen_con['lambda'].values:
+            fila_con = resumen_con[resumen_con['lambda'] == lambda_val].iloc[0]
+            print(f"{lambda_val:<8.2f} {'Con mejora':<15} {fila_con['frecuencia_congestion_mean']:<12.3f} {fila_con['congestion_maxima_mean']:<12.3f}")
+        
+        # Control (si está disponible)
+        if resumen_control is not None and lambda_val in resumen_control['lambda'].values:
+            fila_control = resumen_control[resumen_control['lambda'] == lambda_val].iloc[0]
+            print(f"{lambda_val:<8.2f} {'Control':<15} {fila_control['frecuencia_congestion_control_mean']:<12.3f} {fila_control['congestion_control_maxima_mean']:<12.3f}")
+        print()
