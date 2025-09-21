@@ -46,6 +46,27 @@ class plane:
         if 0 <= idx < len(self.fila.aviones):
             follower = self.fila.aviones[idx]
             follower.next = leader
+    
+    #POLÍTICA DE MEJORA, USAMOS:
+    def posicion_en_fila(self):
+        #Posición relativa: 0 si es el primero (sin líder), 1 si es el seguidor inmediato y así
+        idx = self.fila.get_index(self)
+        return max(0, idx) 
+    
+    def v_max_objetivo(self):
+        """
+        Techo por la política: v_max - min(pos, i_max)*delta, acotado a [v_min, v_max].
+        Lee (delta, i_max) que publica Simulacion en la fila principal.
+        """
+        delta = getattr(self.fila, "delta", 0.0) #ESTO DEVUELVE SELF.DELTA
+        i_max = getattr(self.fila, "i_max", 0) #ESTO DEVUELVE SELF.I_MAX
+
+        if delta <= 0 or i_max <= 0: #NO HAY CONGESTION -> VELOCIDAD MAXIMA
+            return self.v_max
+
+        pasos = min(self.posicion_en_fila(), i_max) #PARA NO IR MÁS ESCALONES DE LOS PERMITIDOS
+        v_nueva = self.v_max - pasos * delta #CADA PASO BAJA DELTA NUDOS
+        return max(self.v_min, v_nueva)
         
     # ========================================================
     # ENUNCIADO / PARTE 1
@@ -73,6 +94,7 @@ class plane:
     def avanzar(self, minuto_actual: int = None, dt: float = 1.0, hay_viento = True, tormenta_activa = False, metricas = None):
         # ACTUALIZA VMIN Y VMAX SEGÚN TRAMO
         self.calcular_rango_velocidad()
+        #self.velocidad_actual = self.v_max_objetivo()
 
         # ----------------------------------------------------
         # CASO 1: AVIÓN EN FILA O REINSERTADO
@@ -81,7 +103,7 @@ class plane:
         if self.estado == "En fila" or self.estado == "Reinsertado":
 
             # SI TIENE LÍDER ADELANTE, APLICAR LA REGLA DE SEPARACIÓN
-            if self.next is not None and self.next.estado == "En fila":
+            if self.next is not None and self.next.estado in ("En fila", "Reinsertado"):
                 eta_self = self._eta(self.distancia_mn_aep, self.velocidad_actual)
                 eta_next = self._eta(self.next.distancia_mn_aep, self.next.velocidad_actual)
                 gap = eta_self - eta_next  # DIFERENCIA DE ETA EN MINUTOS
@@ -101,16 +123,17 @@ class plane:
 
                 elif gap >= 5.0:
                     # SI GAP ≥ 5 → VOLVER A VMAX
-                    self.velocidad_actual = self.v_max
+                    self.velocidad_actual = self.v_max_objetivo()
+                # SI 4 <= GAP < 5 → MANTIENE VELOCIDAD
             else:
                 # SI NO TIENE LÍDER → VMAX
-                self.velocidad_actual = self.v_max
+                self.velocidad_actual = self.v_max_objetivo()
 
             # AVANZA DISTANCIA HACIA AEP
             self.distancia_mn_aep = max(0.0, self.distancia_mn_aep - (self.velocidad_actual / 60.0) * dt)
             self.tiempo_en_min_aep = self._eta(self.distancia_mn_aep, self.velocidad_actual)
             
-            # CUANDO ESTÁ A MENOS DE 5 MN → INTENTA ATERRIZAR
+            # CUANDO ESTÁ A MENOS DE 5 MN PERO TODAVÍA NO LLEGÓ A AEP → CHEQUEAR SI VA A PODER ATERRIZAR O VA A TENER QUE INTERRUMPIR
             if 0.0 < self.distancia_mn_aep <= 5.0:
 
                 # -------------------------------------------------
@@ -118,13 +141,17 @@ class plane:
                 # PARTE 6: TORMENTA (CERRADO EL AEP)
                 # -------------------------------------------------
                 
+                # Tormenta: se evalúa siempre
                 if tormenta_activa:
                     self.estado = "Tormenta"
                     if metricas: metricas.registrar_desvio_tormenta()
                     self.tormenta.agregar_avion(self)
                     self.velocidad_actual = 200.0
                     self._descolar_y_reenlazar()
+                    # No aterriza; sale outbound a 200 y buscará gap para reinsertarse
                     return
+                # Día ventoso (10% por AVIÓN) 
+                # Decidir una sola vez al entrar a la recta final (≤5 mn)
                 if not self.goaround_evaluado:
                     self.goaround_evaluado = True
                     if hay_viento:
@@ -133,6 +160,7 @@ class plane:
                         if self.goaround_decidido:
                             # Elegimos dónde se gatilla dentro de 0-5 mn (puede ser bien cerca del suelo)
                             self.goaround_trigger_dist = random.uniform(0.0, 5.0)
+                
                 if self.goaround_decidido and self.goaround_trigger_dist is not None \
                 and self.distancia_mn_aep <= self.goaround_trigger_dist:
                     self.estado = "Rio"
@@ -141,7 +169,7 @@ class plane:
                     self.velocidad_actual = 200.0
                     self._descolar_y_reenlazar()
                     return
-                
+            
             # Aterrizaje real: cuando llegó a 0 mn
             if self.distancia_mn_aep <= 0.0:
                 self.distancia_mn_aep = 0.0
@@ -174,7 +202,7 @@ class plane:
 
                 # Velocidad de reingreso: usar tu perfil y respetar límites del tramo
                 self.calcular_rango_velocidad()
-                self.velocidad_actual = self.v_max
+                self.velocidad_actual = self.v_max_objetivo()
 
                 # Estado y ordenar por distancia para mantener la fila prolija
                 self.fila.actualizar_orden()
@@ -185,14 +213,14 @@ class plane:
                 # SI NO HAY GAP → SIGUE SALIENDO OUTBOUND A 200 KN
                 self.distancia_mn_aep += (200.0 / 60.0) * dt
                 if self.distancia_mn_aep >= 100.0:
-                    # SI YA PASÓ 100 MN → SE VA A MONTEVIDEO
-                    # Registrar historia completa antes de ir a Montevideo
+                    
                     if self.historia is not None:
                         self.historia[self.id]["t"].append(minuto_actual)
                         self.historia[self.id]["x"].append(self.distancia_mn_aep)
                         self.historia[self.id]["v"].append(self.velocidad_actual)
                         self.historia[self.id]["vmax"].append(self.v_max)
-                        
+
+                    # SI YA PASÓ 100 MN → SE VA A MONTEVIDEO
                     if self.estado == "Desviado":
                         self.desviados.eliminar_avion(self)
                     elif self.estado == "Rio":
