@@ -8,6 +8,8 @@ from analisis import (
     analizar_viento,
     analizar_tormenta,
     calcular_atraso_promedio,
+    calcular_congestion_total,
+    calcular_congestion_por_tramo,
     tiempo_ideal
 )
 
@@ -15,7 +17,7 @@ from analisis import (
 # PARTE 4, 5 y 6: CORRER EXPERIMENTOS PARA VARIOS λ
 # ============================================================
 
-def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = {}, dia_ventoso = True, hay_tormenta = False, seed = 0):
+def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = {}, dia_ventoso = False, hay_tormenta = False, seed = 0):
     """
     Corre simulaciones Monte Carlo para una lista de valores de λ.
     
@@ -67,6 +69,10 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
             
             # ATRASO PROMEDIO RESPECTO AL TIEMPO IDEAL
             atraso_prom = calcular_atraso_promedio(sim_data, t_ideal)
+            
+            # NUEVAS MÉTRICAS DE CONGESTIÓN POR REALIZACIÓN
+            congestion_total = calcular_congestion_total(sim_data["congestion"])
+            congestion_tramo = calcular_congestion_por_tramo(sim_data["historia"])
 
             # GUARDA RESULTADOS DE ESTA REPETICIÓN
             resultados.append({
@@ -79,7 +85,13 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
                 "viento_freq": viento_stats["frecuencia"],
                 "tormenta_prom": tormenta_stats["promedio"],
                 "tormenta_freq": tormenta_stats["frecuencia"],
-                "atraso_prom": atraso_prom
+                "atraso_prom": atraso_prom,
+                "frecuencia_congestion": congestion_total["frecuencia_congestion"],
+                "congestion_maxima": congestion_total["congestion_maxima"],
+                "congestion_lejos": congestion_tramo["lejos"],
+                "congestion_medio": congestion_tramo["medio"],
+                "congestion_cerca": congestion_tramo["cerca"],
+                "historia": sim_data["historia"] 
             })
 
     
