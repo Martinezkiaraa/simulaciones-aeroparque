@@ -158,6 +158,16 @@ def IC_globales(df):
     resumen["IC95_lower"] = resumen["mean"] - 1.96 * resumen["Error MonteCarlo"]
     resumen["IC95_upper"] = resumen["mean"] + 1.96 * resumen["Error MonteCarlo"]
 
+    # Mostrar como tabla legible
+    print("{:<10} {:<10} {:<10} {:<10} {:<15} {:<15} {:<15}".format(
+        "Lambda", "Promedio", "Std", "N", "Error MC", "IC95_lower", "IC95_upper"
+    ))
+    print("-" * 85)
+    for _, row in resumen.iterrows():
+        print("{:<10.2f} {:<10.2f} {:<10.2f} {:<10} {:<15.4f} {:<15.4f} {:<15.4f}".format(
+            row["lambda"], row["mean"], row["std"], int(row["count"]),
+            row["Error MonteCarlo"], row["IC95_lower"], row["IC95_upper"]
+        ))
     return resumen
 
 def analizar_montevideo(data):
@@ -367,49 +377,48 @@ def analizar_congestion_montevideo(df):
     return pd.DataFrame(resultados)
 
 def print_resumen_congestion(df):
-    """
-    Imprime un resumen detallado de las métricas de congestión.
-    
-    Parámetros:
-    - df: DataFrame con resultados de experimentos
-    """
     resumen = analizar_congestion_promedio(df)
     if resumen is None:
         return
-    
-    print("=" * 80)
-    print("ANÁLISIS DETALLADO DE CONGESTIÓN POR LAMBDA")
-    print("=" * 80)
-    
+
+    # Encabezado de la tabla
+    print("{:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}".format(
+        "Lambda", "Freq. Cong.", "IC Low", "IC Up", "Max Cong.", "IC Low", "IC Up",
+        "Lejos", "Medio", "Cerca"
+    ))
+    print("-" * 100)
+
     for _, fila in resumen.iterrows():
-        lambda_val = fila['lambda']
-        print(f"\n🔹 LAMBDA = {lambda_val} aviones/min")
-        print("-" * 50)
-        
-        # Frecuencia de congestión
-        freq_mean = fila['frecuencia_congestion_mean']
-        freq_ic_lower = fila['frecuencia_congestion_ic_lower']
-        freq_ic_upper = fila['frecuencia_congestion_ic_upper']
-        print(f"📊 Frecuencia de congestión: {freq_mean:.3f} ({freq_ic_lower:.3f} - {freq_ic_upper:.3f})")
-        
-        # Congestión máxima
-        max_mean = fila['congestion_maxima_mean']
-        max_ic_lower = fila['congestion_maxima_ic_lower']
-        max_ic_upper = fila['congestion_maxima_ic_upper']
-        print(f"📈 Congestión máxima: {max_mean:.1f} aviones ({max_ic_lower:.1f} - {max_ic_upper:.1f})")
-        
-        # Congestión por tramo
-        print(f"📍 Congestión por tramo:")
-        print(f"   • Lejos (>50 MN): {fila['congestion_lejos_mean']:.1f} ± {fila['congestion_lejos_se']:.1f} min")
-        print(f"   • Medio (15-50 MN): {fila['congestion_medio_mean']:.1f} ± {fila['congestion_medio_se']:.1f} min")
-        print(f"   • Cerca (<15 MN): {fila['congestion_cerca_mean']:.1f} ± {fila['congestion_cerca_se']:.1f} min")
-        
-        # Total de congestión
-        total_congestion = (fila['congestion_lejos_mean'] + 
-                           fila['congestion_medio_mean'] + 
-                           fila['congestion_cerca_mean'])
-        print(f"🔢 Total congestión: {total_congestion:.1f} minutos")
+        print("{:<10.2f} {:<10.3f} {:<10.3f} {:<10.3f} {:<10.1f} {:<10.1f} {:<10.1f} {:<10.1f} {:<10.1f} {:<10.1f}".format(
+            fila['lambda'],
+            fila['frecuencia_congestion_mean'],
+            fila['frecuencia_congestion_ic_lower'],
+            fila['frecuencia_congestion_ic_upper'],
+            fila['congestion_maxima_mean'],
+            fila['congestion_maxima_ic_lower'],
+            fila['congestion_maxima_ic_upper'],
+            fila['congestion_lejos_mean'],
+            fila['congestion_medio_mean'],
+            fila['congestion_cerca_mean']
+        ))
+    print("-" * 100)
+    print("Lejos, Medio y Cerca son minutos promedio de congestión por tramo (>50MN, 15-50MN, <15MN).")
 
 def print_resumen(metricas_lambdas):
-     for m in metricas_lambdas:
-        print(metricas_lambdas[m].resumen())
+    # Encabezado de la tabla
+    print("{:<10} {:<12} {:<10} {:<15} {:<18} {:<15} {:<15} {:<15}".format(
+        "Lambda", "Aterrizajes", "Aviones", "En vuelo", "Reinserciones", "Desv. MVD", "Desv. Viento", "Desv. Tormenta"
+    ))
+    print("-" * 105)
+    for lambda_val, metricas in metricas_lambdas.items():
+        resumen = metricas.resumen()
+        print("{:<10} {:<12} {:<10} {:<15} {:<18} {:<15} {:<15} {:<15}".format(
+            str(lambda_val),
+            resumen["aterrizajes"],
+            resumen["aviones"],
+            resumen["en_vuelo"],
+            resumen["reinserciones"],
+            resumen["desvios_montevideo"],
+            resumen["desvios_viento"],
+            resumen["desvios_tormenta"]
+        ))

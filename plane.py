@@ -239,10 +239,8 @@ class plane:
             eta_b = self._eta(avion_b.distancia_mn_aep, avion_b.velocidad_actual)
 
             # SI GAP ≥ 10 → DEVUELVE POSICIÓN
-            if self.estado in ["Desviado", "Rio", "Tormenta"] and eta_b - eta_a >= 10.0:
+            if self.estado in ["Desviado", "Rio", "Tormenta"] and eta_b - eta_a >= 10.0 and self.distancia_mn_aep > 5.0:
                 return i + 1
-            elif eta_b - eta_a >= 10.0 and self.distancia_mn_aep > 5.0:
-                return i + 1 
             
         # SI NO ENCONTRÓ GAP INTERNO → CHEQUEA FINAL DE LA FILA
         if largo > 0:

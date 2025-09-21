@@ -6,9 +6,80 @@ import seaborn as sns
 import numpy as np
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
-# ============================================================
-# PARTE 4: COMPARACIÓN TIEMPO REAL VS TIEMPO IDEAL
-# ============================================================
+def animar_fila_radar(historia, minutos, tail):
+    # Construyo por tiempo: lista de (id, distancia) en cada minuto
+    por_tiempo = [[] for _ in range(minutos)]
+    for _id, h in historia.items():
+        for tt, xx in zip(h["t"], h["x"]):
+            if 0 <= tt < minutos:
+                por_tiempo[tt].append((_id, xx))
+    
+    # Estilo visual base
+    plt.style.use("default")
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.set_xlim(100, 0)   # de 100 mn a 0 mn
+    ax.set_ylim(-1, 1)    # fila única
+    ax.set_facecolor("black")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title("Aproximación a AEP - Simulación Monte Carlo", 
+                 color="#66ccff", fontsize=16, pad=15, weight="bold")
+    
+    estelas = {}  # id -> lista de (t, x) recientes
+    
+    # Aviones
+    heads = ax.scatter([], [], s=160, marker=">", 
+                       color="#00c3ff", edgecolor="white", lw=0.8, alpha=0.95)
+    txt = ax.text(0.02, 0.85, "", transform=ax.transAxes, 
+                  color="#66ccff", fontsize=12, alpha=0.9, family="monospace")
+    
+    def init():
+        heads.set_offsets(np.empty((0, 2)))
+        txt.set_text("")
+        return heads, txt
+    
+    def update(t):
+        # actualizar estelas
+        for (_id, x) in por_tiempo[t]:
+            if _id not in estelas:
+                estelas[_id] = []
+            estelas[_id].append((t, x))
+            if len(estelas[_id]) > tail:
+                estelas[_id] = estelas[_id][-tail:]
+        
+        # borrar líneas viejas
+        for ln in list(ax.lines):
+            ln.remove()
+        
+        # dibujar estelas glow
+        xs_head, ys_head = [], []
+        for eid, pts in estelas.items():
+            xs = [x for (_, x) in pts]
+            ys = [0] * len(xs)
+            
+            # glow: segmentos más brillantes cerca de la cabeza
+            for i in range(1, len(xs)):
+                alpha = i / len(xs)
+                ax.plot(xs[i-1:i+1], ys[i-1:i+1], 
+                        color=(0.1, 0.7, 1, alpha*0.5), lw=3, solid_capstyle="round")
+            
+            xs_head.append(xs[-1])
+            ys_head.append(0)
+        
+        # actualizar cabezas
+        if xs_head:
+            heads.set_offsets(np.column_stack([xs_head, ys_head]))
+        else:
+            heads.set_offsets(np.empty((0, 2)))
+        
+        # texto
+        txt.set_text(f"Minuto: {t:3d}\n Aviones activos: {len(xs_head)}")
+        return heads, txt
+    
+    anim = FuncAnimation(fig, update, frames=minutos, init_func=init,
+                         interval=120, blit=False)
+    plt.close(fig)  # evitar duplicados en Jupyter
+    return anim
 
 def plot_comparacion_tiempos(df: pd.DataFrame):
     """
@@ -31,10 +102,6 @@ def plot_comparacion_tiempos(df: pd.DataFrame):
     plt.grid(True, alpha = 0.3)
     plt.legend()
     plt.show()
-
-# =================================================================
-# PARTE 4: CONGESTIÓN EN AVIONES ATERRIZADOS Y AVIONES A MONTEVIDEO
-# =================================================================
 
 def plot_desvios_y_congestion(metricas_, df):
     lambdas = [0.02, 0.1, 0.2, 0.5, 1]
@@ -70,7 +137,7 @@ def plot_desvios_y_congestion(metricas_, df):
     axes[1].errorbar(resumen_congestion["lambda"], resumen_congestion["mean"], 
                     yerr=resumen_congestion["ic_error"], marker="o", capsize=5, 
                     linewidth=2, markersize=6)
-    axes[1].set_title("Congestión promedio por minuto de aviones que aterrizaron")
+    axes[1].set_title("Minutos promedio de congestión de aviones que aterrizaron")
     axes[1].set_xlabel("Lambda")
     axes[1].set_ylabel("Minutos en congestión por avión")
     axes[1].grid(alpha=0.3)
@@ -80,81 +147,98 @@ def plot_desvios_y_congestion(metricas_, df):
 
 def plot_congestion_montevideo(df):
     """
-    Crea gráficos de congestión específicamente para aviones que van a Montevideo.
-    
-    Parámetros:
-    - df: DataFrame con resultados de experimentos
+    Genera 4 gráficos:
+    1. Aterrizajes en AEP vs Desvíos a Montevideo por lambda.
+    2. Promedio de minutos en congestión: aterrizados vs desviados a Montevideo por lambda.
+    3. Atraso promedio: aterrizados vs desviados a Montevideo por lambda.
+    4. Frecuencia de desvíos a Montevideo por lambda.
     """
     import matplotlib.pyplot as plt
-    
-    # Calcular resumen de congestión para aviones de Montevideo
-    resumen_montevideo = analizar_congestion_montevideo(df)
-    if resumen_montevideo is None:
-        return
-    
-    # Agrupar por lambda y calcular estadísticas
-    resumen = resumen_montevideo.groupby("lambda").agg({
-        "congestion_prom_montevideo": ["mean", "std", "count"],
-        "frecuencia_congestion_montevideo": ["mean", "std"],
-        "congestion_lejos_montevideo": ["mean", "std"],
-        "congestion_medio_montevideo": ["mean", "std"],
-        "congestion_cerca_montevideo": ["mean", "std"]
-    }).reset_index()
-    
-    # Aplanar nombres de columnas
-    resumen.columns = ['_'.join(col).strip() if col[1] else col[0] 
-                      for col in resumen.columns.values]
-    
-    # Calcular intervalos de confianza al 95%
-    for col in ['congestion_prom_montevideo', 'frecuencia_congestion_montevideo', 
-                'congestion_lejos_montevideo', 'congestion_medio_montevideo', 'congestion_cerca_montevideo']:
-        mean_col = f"{col}_mean"
-        std_col = f"{col}_std"
-        count_col = f"{col}_count" if col == 'congestion_prom_montevideo' else 'congestion_prom_montevideo_count'
-        
-        if mean_col in resumen.columns and std_col in resumen.columns:
-            # Error estándar
-            resumen[f"{col}_se"] = resumen[std_col] / np.sqrt(resumen[count_col])
-    
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    
-    # Gráfico 1: Congestión promedio por avión de Montevideo
-    axes[0,0].errorbar(resumen['lambda'], resumen['congestion_prom_montevideo_mean'], 
-                      yerr=resumen['congestion_prom_montevideo_se'], marker='o', capsize=5, 
-                      color='red', linewidth=2)
-    axes[0,0].set_title('Congestión Promedio por Avión de Montevideo')
-    axes[0,0].set_xlabel('Lambda (aviones/min)')
-    axes[0,0].set_ylabel('Minutos de congestión por avión')
-    axes[0,0].grid(True, alpha=0.3)
-    
-    # Gráfico 2: Frecuencia de congestión para aviones de Montevideo
-    axes[0,1].errorbar(resumen['lambda'], resumen['frecuencia_congestion_montevideo_mean'], 
-                      yerr=resumen['frecuencia_congestion_montevideo_se'], marker='s', capsize=5, 
-                      color='blue', linewidth=2)
-    axes[0,1].set_title('Frecuencia de Congestión - Aviones de Montevideo')
-    axes[0,1].set_xlabel('Lambda (aviones/min)')
-    axes[0,1].set_ylabel('Frecuencia de congestión')
-    axes[0,1].grid(True, alpha=0.3)
-    
-    # Gráfico 3: Congestión por tramo para aviones de Montevideo
-    tramos = ['congestion_lejos_montevideo', 'congestion_medio_montevideo', 'congestion_cerca_montevideo']
-    colores = ['blue', 'orange', 'red']
-    labels = ['Lejos (>50 MN)', 'Medio (15-50 MN)', 'Cerca (<15 MN)']
-    
-    for i, tramo in enumerate(tramos):
-        mean_col = f"{tramo}_mean"
-        se_col = f"{tramo}_se"
-        
-        axes[1,0].errorbar(resumen['lambda'], resumen[mean_col], 
-                          yerr=resumen[se_col], marker='o', capsize=5, 
-                          color=colores[i], label=labels[i], linewidth=2)
-    
-    axes[1,0].set_title('Congestión por Tramo - Aviones de Montevideo')
-    axes[1,0].set_xlabel('Lambda (aviones/min)')
-    axes[1,0].set_ylabel('Minutos de congestión por avión')
-    axes[1,0].legend()
-    axes[1,0].grid(True, alpha=0.3)
-    
+    import numpy as np
+    import pandas as pd
+
+    lambdas = sorted(df["lambda"].unique())
+    resultados = []
+
+    for lam, grupo in df.groupby("lambda"):
+        aterrizados = 0
+        montevideo = 0
+        min_cong_aterrizados = []
+        min_cong_montevideo = []
+        atraso_aterrizados = []
+        atraso_montevideo = []
+        freq_montevideo = 0
+
+        for historia in grupo["historia"]:
+            total_aviones = len(historia)
+            desvios_sim = 0
+            for avion in historia.values():
+                estado_final = avion["estado"][-1] if "estado" in avion and len(avion["estado"]) > 0 else None
+                minutos_cong = avion.get("min_congestion", 0)
+                atraso = avion.get("atraso", 0)
+                if estado_final == "Aterrizó":
+                    aterrizados += 1
+                    min_cong_aterrizados.append(minutos_cong)
+                    atraso_aterrizados.append(atraso)
+                elif estado_final == "Montevideo":
+                    montevideo += 1
+                    min_cong_montevideo.append(minutos_cong)
+                    atraso_montevideo.append(atraso)
+                    desvios_sim += 1
+            # Frecuencia de desvíos por simulación
+            if total_aviones > 0:
+                freq_montevideo += desvios_sim / total_aviones
+
+        n_sim = len(grupo)
+        resultados.append({
+            "lambda": lam,
+            "aterrizajes": aterrizados / n_sim,
+            "desvios_montevideo": montevideo / n_sim,
+            "prom_min_cong_aterrizados": np.mean(min_cong_aterrizados) if min_cong_aterrizados else 0,
+            "prom_min_cong_montevideo": np.mean(min_cong_montevideo) if min_cong_montevideo else 0,
+            "atraso_aterrizados": np.mean(atraso_aterrizados) if atraso_aterrizados else 0,
+            "atraso_montevideo": np.mean(atraso_montevideo) if atraso_montevideo else 0,
+            "freq_montevideo": freq_montevideo / n_sim
+        })
+
+    df_resultados = pd.DataFrame(resultados)
+
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+
+    # 1. Aterrizajes vs Desvíos a Montevideo
+    axs[0, 0].plot(df_resultados["lambda"], df_resultados["aterrizajes"], marker='o', label="Aterrizajes en AEP", color="green")
+    axs[0, 0].plot(df_resultados["lambda"], df_resultados["desvios_montevideo"], marker='s', label="Desvíos a Montevideo", color="red")
+    axs[0, 0].set_xlabel("Lambda (aviones/min)")
+    axs[0, 0].set_ylabel("Promedio por simulación")
+    axs[0, 0].set_title("Aterrizajes vs Desvíos a Montevideo")
+    axs[0, 0].legend()
+    axs[0, 0].grid(alpha=0.3)
+
+    # 2. Promedio de minutos en congestión: aterrizados vs Montevideo
+    axs[0, 1].plot(df_resultados["lambda"], df_resultados["prom_min_cong_aterrizados"], marker='o', label="Aterrizados", color="blue")
+    axs[0, 1].plot(df_resultados["lambda"], df_resultados["prom_min_cong_montevideo"], marker='s', label="Montevideo", color="orange")
+    axs[0, 1].set_xlabel("Lambda (aviones/min)")
+    axs[0, 1].set_ylabel("Minutos promedio en congestión")
+    axs[0, 1].set_title("Congestión promedio: aterrizados vs Montevideo")
+    axs[0, 1].legend()
+    axs[0, 1].grid(alpha=0.3)
+
+    # 3. Atraso promedio: aterrizados vs Montevideo
+    axs[1, 0].plot(df_resultados["lambda"], df_resultados["atraso_aterrizados"], marker='o', label="Aterrizados", color="green")
+    axs[1, 0].plot(df_resultados["lambda"], df_resultados["atraso_montevideo"], marker='s', label="Montevideo", color="red")
+    axs[1, 0].set_xlabel("Lambda (aviones/min)")
+    axs[1, 0].set_ylabel("Atraso promedio (min)")
+    axs[1, 0].set_title("Atraso promedio: aterrizados vs Montevideo")
+    axs[1, 0].legend()
+    axs[1, 0].grid(alpha=0.3)
+
+    # 4. Frecuencia de desvíos a Montevideo
+    axs[1, 1].plot(df_resultados["lambda"], df_resultados["freq_montevideo"], marker='o', color="purple")
+    axs[1, 1].set_xlabel("Lambda (aviones/min)")
+    axs[1, 1].set_ylabel("Frecuencia de desvíos")
+    axs[1, 1].set_title("Frecuencia de desvíos a Montevideo")
+    axs[1, 1].grid(alpha=0.3)
+
     plt.tight_layout()
     plt.show()
 
@@ -222,79 +306,6 @@ def plot_aviones_por_minuto(aviones, minutos = 1080):
     plt.ylabel("Cantidad de aviones")
     plt.yticks([0, 1, 2])
     plt.grid(True, alpha = 0.3)
-    plt.tight_layout()
-    plt.show()
-
-def animar_con_estelas(historia, minutos, tail = 20):
-    """
-    CREA UNA ANIMACIÓN ESTILO "RADAR":
-    - MUESTRA LA ESTELA DE CADA AVIÓN EN LOS ÚLTIMOS 'tail' MINUTOS
-    - MUESTRA LA CABEZA DE CADA AVIÓN AVANZANDO
-    """
-    # Construyo por tiempo: lista de (x,id) presentes en cada t
-    por_tiempo = [[] for _ in range(minutos)]
-    for _id, h in historia.items():
-        for tt, xx in zip(h["t"], h["x"]):
-            if 0 <= tt < minutos:
-                por_tiempo[tt].append((_id, xx))
-
-    fig, ax = plt.subplots(figsize = (12, 5))
-    ax.set_xlim(100, 0)
-    ax.set_ylim(-1, 30)  # “carriles” Y
-    ax.set_xlabel("Distancia a AEP (mn)")
-    ax.set_title("Aproximación a AEP — animación con estelas")
-    ax.grid(True, alpha = 0.3)
-
-    # Estado de estelas: id -> lista de (t,x) recientes
-    estelas = {}
-    # artistas
-    heads = ax.scatter([], [], s = 60, marker = "<", color = "C0")
-    txt = ax.text(0.02, 0.95, "", transform = ax.transAxes)
-
-    def init():
-        heads.set_offsets(np.empty((0, 2)))
-        txt.set_text("")
-        return heads, txt
-
-    def update(t):
-        # actualizar estelas
-        for (_id, x) in por_tiempo[t]:
-            if _id not in estelas:
-                estelas[_id] = []
-            estelas[_id].append((t, x))
-            # recortar cola
-            if len(estelas[_id]) > tail:
-                estelas[_id] = estelas[_id][-tail:]
-
-        # dibujar estelas como líneas finas
-        # primero borro líneas viejas
-        for ln in list(ax.lines):
-            ln.remove()
-        # asigno carriles por orden de distancia
-        presentes = sorted([(eid, pts[-1][1]) for eid, pts in estelas.items()], key = lambda z: z[1])
-        y_por_id = {eid: (i % 28) for i, (eid, _) in enumerate(presentes)}
-
-        # dibujo
-        xs_head, ys_head = [], []
-        for eid, pts in estelas.items():
-            xs = [x for (_, x) in pts]
-            ys = [y_por_id[eid]] * len(xs)
-            ax.plot(xs, ys, color = "C0", lw = 1.2, alpha = 0.6)  # estela
-            # cabeza
-            xs_head.append(xs[-1])
-            ys_head.append(ys[-1])
-
-        # actualizar “cabezas”
-        if xs_head:
-            heads.set_offsets(np.column_stack([xs_head, ys_head]))
-        else:
-            heads.set_offsets(np.empty((0, 2)))
-
-        txt.set_text(f"Minuto: {t}  |  Aviones en pantalla: {len(xs_head)}")
-        return heads, txt
-
-    anim = FuncAnimation(fig, update, frames = minutos, init_func = init,
-                         interval = 120, blit = False)
     plt.tight_layout()
     plt.show()
 
@@ -415,27 +426,9 @@ def animar_con_desvios(historia, minutos, tail=20):
                 # Si tiene coordenada x, usarla. Si aterrizó, x = 0
                 if "x" in h and len(h["x"]) > 0:
                     if tt < len(h["x"]):
-                        xx = h["x"][tt] if tt < len(h["x"]) else 0
-                    else:
-                        xx = 0
-                else:
-                    xx = 0
-                if 0 <= tt < minutos:
-                    por_tiempo[tt].append((_id, xx, estado))
-
-    # --- Configuración de la figura ---
-    fig, ax = plt.subplots(figsize=(14, 8))
-    ax.set_xlim(100, 0)  # Distancia desde radar (100 MN) hasta AEP (0 MN)
-    ax.set_ylim(-5, 8)
-    ax.set_xlabel("Distancia a AEP (MN)")
-    ax.set_title("Simulación de Aterrizajes y Desvíos en AEP", fontsize=14)
-    ax.grid(True, alpha=0.3)
-    ax.set_facecolor("#0c1a2b")  # Fondo tipo radar
-
-    # Líneas de referencia
-    ax.axvline(x=50, color='orange', linestyle='--', alpha=0.5, label='> 50 MN')
-    ax.axvline(x=15, color='red', linestyle='--', alpha=0.5, label='< 15 MN')
-    ax.axvline(x=0, color='white', linestyle='-', alpha=0.8, label='AEP')
+                        ax.axvline(x=50, color='orange', linestyle='--', alpha=0.5, label='> 50 MN')
+                        ax.axvline(x=15, color='red', linestyle='--', alpha=0.5, label='< 15 MN')
+                        ax.axvline(x=0, color='white', linestyle='-', alpha=0.8, label='AEP')
 
     # Diccionarios para estelas y AnnotationBbox
     estelas = {}
@@ -528,3 +521,134 @@ def animar_con_desvios(historia, minutos, tail=20):
     plt.show()
 
     return anim
+
+def plot_atraso_vs_desvios(df):
+    # Tiempo ideal sin congestión
+    from analisis import tiempo_ideal
+    t0 = tiempo_ideal()
+    
+    # --- Atraso promedio solo de aterrizados (lo que ya calculás) ---
+    resumen = df.groupby("lambda").agg(
+        atraso_mean=("atraso_prom", "mean"),
+        atraso_std=("atraso_prom", "std"),
+        n=("atraso_prom", "count")
+    ).reset_index()
+    resumen["se"] = resumen["atraso_std"] / np.sqrt(resumen["n"])
+    resumen["t_total"] = resumen["atraso_mean"] + t0
+    
+    # --- Atraso promedio penalizando desvíos ---
+    # Si un avión se desvía, le asignamos "atraso infinito" → lo modelamos con un valor muy alto
+    penalidad = 999  # minutos (prácticamente infinito en escala del problema)
+    df["atraso_con_desvios"] = df["atraso_prom"] + penalidad * (df["montevideo_prom"] > 0)
+    
+    resumen_penal = df.groupby("lambda").agg(
+        atraso_mean=("atraso_con_desvios", "mean"),
+        atraso_std=("atraso_con_desvios", "std"),
+        n=("atraso_con_desvios", "count")
+    ).reset_index()
+    resumen_penal["se"] = resumen_penal["atraso_std"] / np.sqrt(resumen_penal["n"])
+    resumen_penal["t_total"] = resumen_penal["atraso_mean"] + t0
+    
+    # --- Gráfico comparativo ---
+    plt.figure(figsize=(8,5))
+    
+    plt.errorbar(resumen["lambda"], resumen["t_total"], 
+                 yerr=resumen["se"], marker="o", label="Solo aterrizados", color="blue")
+    plt.errorbar(resumen_penal["lambda"], resumen_penal["t_total"], 
+                 yerr=resumen_penal["se"], marker="s", label="Incluyendo desviados (penalidad)", color="red")
+    
+    plt.axhline(y=t0, color="gray", linestyle="--", label="Tiempo ideal")
+    plt.xlabel("Lambda (aviones/min)")
+    plt.ylabel("Tiempo total promedio (min)")
+    plt.title("Comparación del atraso promedio con y sin penalizar desvíos")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.show()
+
+def plot_analisis_completo_tormenta(df_normal, df_tormenta):
+    """
+    Crea gráficos de análisis completo incluyendo atrasos, desvíos y efectos de tormenta.
+    Parámetros:
+    - df_normal: DataFrame con resultados sin tormenta
+    - df_tormenta: DataFrame con resultados con tormenta
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+
+    # Gráfico 1: Tiempo total de viaje
+    from analisis import tiempo_ideal
+    t0 = tiempo_ideal()
+
+    resumen_atraso_normal = df_normal.groupby("lambda")["atraso_prom"].agg(["mean", "std", "count"]).reset_index()
+    resumen_atraso_normal["se"] = resumen_atraso_normal["std"] / np.sqrt(resumen_atraso_normal["count"])
+    resumen_atraso_normal["t_total"] = resumen_atraso_normal["mean"] + t0
+
+    resumen_atraso_tormenta = df_tormenta.groupby("lambda")["atraso_prom"].agg(["mean", "std", "count"]).reset_index()
+    resumen_atraso_tormenta["se"] = resumen_atraso_tormenta["std"] / np.sqrt(resumen_atraso_tormenta["count"])
+    resumen_atraso_tormenta["t_total"] = resumen_atraso_tormenta["mean"] + t0
+
+    axes[0,0].errorbar(resumen_atraso_normal["lambda"], resumen_atraso_normal["t_total"], 
+                      yerr=resumen_atraso_normal["se"], marker='o', capsize=5, 
+                      color='blue', label='Normal', linewidth=2)
+    axes[0,0].errorbar(resumen_atraso_tormenta["lambda"], resumen_atraso_tormenta["t_total"], 
+                      yerr=resumen_atraso_tormenta["se"], marker='s', capsize=5, 
+                      color='red', label='Con Tormenta', linewidth=2)
+    axes[0,0].set_title('Tiempo Total de Viaje: Comparación')
+    axes[0,0].set_xlabel('Lambda (aviones/min)')
+    axes[0,0].set_ylabel('Minutos totales por avión')
+    axes[0,0].legend()
+    axes[0,0].grid(True, alpha=0.3)
+
+    # Gráfico 2: Desvíos a Montevideo
+    resumen_montevideo_normal = df_normal.groupby("lambda")["montevideo_prom"].agg(["mean", "std", "count"]).reset_index()
+    resumen_montevideo_normal["se"] = resumen_montevideo_normal["std"] / np.sqrt(resumen_montevideo_normal["count"])
+    
+    resumen_montevideo_tormenta = df_tormenta.groupby("lambda")["montevideo_prom"].agg(["mean", "std", "count"]).reset_index()
+    resumen_montevideo_tormenta["se"] = resumen_montevideo_tormenta["std"] / np.sqrt(resumen_montevideo_tormenta["count"])
+    
+    axes[0,1].errorbar(resumen_montevideo_normal["lambda"], resumen_montevideo_normal["mean"], 
+                      yerr=resumen_montevideo_normal["se"], marker='o', capsize=5, 
+                      color='blue', label='Normal', linewidth=2)
+    axes[0,1].errorbar(resumen_montevideo_tormenta["lambda"], resumen_montevideo_tormenta["mean"], 
+                      yerr=resumen_montevideo_tormenta["se"], marker='s', capsize=5, 
+                      color='red', label='Con Tormenta', linewidth=2)
+    axes[0,1].set_title('Desvíos a Montevideo: Comparación')
+    axes[0,1].set_xlabel('Lambda (aviones/min)')
+    axes[0,1].set_ylabel('Desvíos promedio por minuto')
+    axes[0,1].legend()
+    axes[0,1].grid(True, alpha=0.3)
+
+    # Gráfico 3: Frecuencia de desvíos por tormenta (si tenés columna 'tormenta_freq')
+    if "tormenta_freq" in df_tormenta.columns:
+        resumen_freq_tormenta = df_tormenta.groupby("lambda")["tormenta_freq"].agg(["mean", "std", "count"]).reset_index()
+        resumen_freq_tormenta["se"] = resumen_freq_tormenta["std"] / np.sqrt(resumen_freq_tormenta["count"])
+
+        axes[1,0].errorbar(resumen_freq_tormenta["lambda"], resumen_freq_tormenta["mean"], 
+                          yerr=resumen_freq_tormenta["se"], marker='^', capsize=5, 
+                          color='purple', linewidth=2)
+        axes[1,0].set_title('Frecuencia de Desvíos por Tormenta')
+        axes[1,0].set_xlabel('Lambda (aviones/min)')
+        axes[1,0].set_ylabel('Frecuencia de desvíos por tormenta')
+        axes[1,0].grid(True, alpha=0.3)
+    else:
+        axes[1,0].axis('off')
+
+    # Gráfico 4: Promedio de aviones desviados por tormenta (si tenés columna 'tormenta_prom')
+    if "tormenta_prom" in df_tormenta.columns:
+        resumen_tormenta = df_tormenta.groupby("lambda")["tormenta_prom"].agg(["mean", "std", "count"]).reset_index()
+        resumen_tormenta["se"] = resumen_tormenta["std"] / np.sqrt(resumen_tormenta["count"])
+
+        axes[1,1].errorbar(resumen_tormenta["lambda"], resumen_tormenta["mean"], 
+                          yerr=resumen_tormenta["se"], marker='D', capsize=5, 
+                          color='green', linewidth=2)
+        axes[1,1].set_title('Promedio de Aviones Desviados por Tormenta\n(De los que Aterrizaron)')
+        axes[1,1].set_xlabel('Lambda (aviones/min)')
+        axes[1,1].set_ylabel('Desvíos por tormenta promedio por minuto')
+        axes[1,1].grid(True, alpha=0.3)
+    else:
+        axes[1,1].axis('off')
+
+    plt.tight_layout()
+    plt.show()

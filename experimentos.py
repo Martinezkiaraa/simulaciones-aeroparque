@@ -36,6 +36,7 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
     resultados = []
 
     if hay_tormenta:
+        random.seed(1040)
         inicio_tormenta = random.uniform(0,1080)
         print(f"======== La tormenta iniciará en el tiempo ======= {inicio_tormenta}")
     else:
