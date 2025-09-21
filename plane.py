@@ -7,7 +7,7 @@ import random
 # ============================================================
 
 class plane:
-    def __init__(self, id, minuto_aparicion, fila, desviados, mtvd, viento, tormenta, tormenta_viento):
+    def __init__(self, id, minuto_aparicion, fila, desviados, mtvd, viento, tormenta):
         self.id = id 
         self.estado = "En fila"             # ESTADO INICIAL
         self.minuto_aparicion = minuto_aparicion
@@ -24,7 +24,6 @@ class plane:
         self.mtvd = mtvd               # Aviones que se fueron a Montevideo
         self.viento = viento           # Desvíos por día ventoso (parte 5)
         self.tormenta = tormenta       # Desvíos por tormenta (parte 6)
-        self.tormenta_viento = tormenta_viento # Desvíos en día con tormenta + viento (parte 6)
 
     # ========================================================
     # ENUNCIADO / PARTE 1
@@ -40,6 +39,15 @@ class plane:
     def velocidad(self):
         return self.velocidad_actual
     
+    def _descolar_y_reenlazar(self):
+        leader = self.next
+        idx = self.fila.get_index(self)
+        self.next = None
+        self.fila.eliminar_avion(self)
+        if 0 <= idx < len(self.fila.aviones):
+            follower = self.fila.aviones[idx]
+            follower.next = leader
+        
     # ========================================================
     # ENUNCIADO / PARTE 1
     # DEFINE EL RANGO DE VELOCIDADES PERMITIDO SEGÚN DISTANCIA
@@ -84,17 +92,10 @@ class plane:
                     nueva_v = self.next.velocidad() - 20.0
                     if nueva_v < self.v_min:
                         # SI ESO CAE DEBAJO DE VMIN → DESVÍO A OUTBOUND (congestión)
-                        idx = self.fila.get_index(self)      # guardá tu índice antes de sacar
-                        leader = self.next                   # guardá quién era tu líder
                         self.estado = "Desviado"
                         self.velocidad_actual = 200.0        # outbound
-                        self.fila.eliminar_avion(self)       # te vas de la fila
                         self.desviados.agregar_avion(self)
-                        self.next = None                     # vos ya no tenés líder
-                        # EL SEGUIDOR, SI EXISTE, AHORA PASA A SEGUIR AL LÍDER ORIGINAL
-                        if idx < len(self.fila.aviones):     # ojo: la lista ya se corrió a la izquierda
-                            follower = self.fila.aviones[idx]
-                            follower.next = leader  
+                        self._descolar_y_reenlazar() 
                         return         
                     else:
                         self.velocidad_actual = nueva_v
@@ -119,40 +120,28 @@ class plane:
                 # PARTE 6: TORMENTA (CERRADO EL AEP)
                 # -------------------------------------------------
                 
-                # CASO 6: TORMENTA ACTIVA → AEP CERRADO
-                if tormenta_activa:
-                    if hay_viento:
-                        self.estado = "Tormenta+Viento"
-                        if metricas: metricas.registrar_desvio_tormenta_viento()
-                        self.tormenta_viento.agregar_avion(self)
-                    else:
+                # CASO 5: HAY INTERRUPCION DE ATERRIZAJE POR VIENTO O AEP CERRADO
+                p_evento = 0.1 if hay_viento else 0.0
+                if random.random() < p_evento or tormenta_activa:
+                    if tormenta_activa:
                         self.estado = "Tormenta"
                         if metricas: metricas.registrar_desvio_tormenta()
                         self.tormenta.agregar_avion(self)
+                    elif hay_viento:
+                        self.estado = "Rio"
+                        if metricas: metricas.registrar_desvio_viento()
+                        self.viento.agregar_avion(self)
                     self.velocidad_actual = 200.0
-                    self.fila.eliminar_avion(self)
-                    self.next = None
-                    return
-                
-                # CASO 5: DÍA VENTOSO → GO-AROUND AL RÍO
-                p_evento = 0.1 if hay_viento else 0.0
-                if random.random() < p_evento:
-                    self.estado = "Rio"
-                    if metricas: metricas.registrar_desvio_viento()
-                    self.velocidad_actual = 200.0
-                    lider = self.next
-                    ind = self.fila.get_index(self)
-                    self.next = None
-                    self.fila.eliminar_avion(self)
-                    self.viento.agregar_avion(self)
-                    if ind < len(self.fila.aviones):
-                        seguidor = self.fila.aviones[ind]
-                        seguidor.next = lider
+                    self._descolar_y_reenlazar()
 
                 else:
-                    # ATERRIZA NORMAL
+                    # ----------------------------------------------------
+                    # CASO 2: YA ATERRIZÓ
+                    # ----------------------------------------------------
                     self.distancia_mn_aep = 0.0
                     self.estado = "Aterrizó" 
+                    metricas.registrar_aterrizaje()
+                    self.fila.eliminar_avion(self)
                     if self.landed_minute is None and minuto_actual is not None:
                         self.landed_minute = minuto_actual
             
@@ -164,18 +153,10 @@ class plane:
             return
 
         # ----------------------------------------------------
-        # CASO 2: YA ATERRIZÓ
-        # ----------------------------------------------------
-
-        if self.estado == "Aterrizó":
-            self.fila.eliminar_avion(self)
-            return
-
-        # ----------------------------------------------------
         # CASO 3: DESVIADO, VIENTO O TORMENTA (OUTBOUND)
         # ----------------------------------------------------
         
-        if self.estado in ["Desviado", "Rio", "Tormenta", "Tormenta+Viento"]:
+        if self.estado in ["Desviado", "Rio", "Tormenta"]:
             # BUSCAR UN GAP ≥ 10 MIN PARA REINSERTARSE 
             posicion = self.buscar_gap()
             
@@ -204,8 +185,6 @@ class plane:
                         self.viento.eliminar_avion(self)
                     elif self.estado == "Tormenta":
                         self.tormenta.eliminar_avion(self)
-                    elif self.estado == "Tormenta+Viento":
-                        self.tormenta_viento.eliminar_avion(self)
 
                     self.estado = "Montevideo"
                     self.mtvd.agregar_avion(self)
@@ -227,8 +206,6 @@ class plane:
             self.viento.eliminar_avion(self)
         elif self.estado == "Tormenta":
             self.tormenta.eliminar_avion(self)
-        elif self.estado == "Tormenta+Viento":
-            self.tormenta_viento.eliminar_avion(self)
 
         # ACTUALIZA PUNTEROS
         leader = self.fila.aviones[posicion - 1] if posicion > 0 else None
@@ -255,7 +232,7 @@ class plane:
             eta_b = self._eta(avion_b.distancia_mn_aep, avion_b.velocidad_actual)
 
             # SI GAP ≥ 10 → DEVUELVE POSICIÓN
-            if self.estado in ["Desviado", "Rio", "Tormenta", "Tormenta+Viento"] and eta_b - eta_a >= 10.0:
+            if self.estado in ["Desviado", "Rio", "Tormenta"] and eta_b - eta_a >= 10.0:
                 return i + 1
             elif eta_b - eta_a >= 10.0 and self.distancia_mn_aep > 5.0:
                 return i + 1 
@@ -265,7 +242,7 @@ class plane:
             eta_1 = self._eta(self.distancia_mn_aep, self.velocidad_actual)
             eta_2 = self._eta(self.fila.aviones[-1].distancia_mn_aep, self.fila.aviones[-1].velocidad_actual)
             
-            if self.estado in ["Desviado", "Rio", "Tormenta", "Tormenta+Viento"] and self.distancia_mn_aep <= 100.0 and eta_1 - eta_2 >= 10.0:
+            if self.estado in ["Desviado", "Rio", "Tormenta"] and self.distancia_mn_aep <= 100.0 and eta_1 - eta_2 >= 10.0:
                 # Si no encontró gap interno: si todavía no salió de 100 mn, podés insertarlo al final
                 return largo                
             else:

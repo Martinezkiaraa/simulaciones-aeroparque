@@ -20,7 +20,6 @@ class MetricasSimulacion:
 
         # PARTE 6
         self.desvios_tormenta = 0             # DESVÍOS POR TORMENTA (AEP cerrado)
-        self.desvios_tormenta_viento = 0      # DESVÍOS COMBINADOS (tormenta + viento)
 
     # ---------------- REGISTROS ----------------
 
@@ -46,8 +45,6 @@ class MetricasSimulacion:
     def registrar_desvio_tormenta(self, cantidad=1):
         self.desvios_tormenta += cantidad
 
-    def registrar_desvio_tormenta_viento(self, cantidad=1):
-        self.desvios_tormenta_viento += cantidad
 
     # ---------------- RESUMEN ----------------
 
@@ -64,7 +61,6 @@ class MetricasSimulacion:
             "desvios_montevideo": self.desvios_montevideo,
             "desvios_viento": self.desvios_viento,
             "desvios_tormenta": self.desvios_tormenta,
-            "desvios_tormenta_viento": self.desvios_tormenta_viento,
         }
 
     # REPRESENTACIÓN DE TEXTO (ÚTIL PARA DEBUG)
@@ -75,65 +71,92 @@ class MetricasSimulacion:
                 f"desv_mvd={self.desvios_montevideo}, "
                 f"desv_viento={self.desvios_viento}, "
                 f"desv_tormenta={self.desvios_tormenta}, "
-                f"desv_tormenta_viento={self.desvios_tormenta_viento}>")
+            )
 
 # ============================================================
 # FUNCIONES DE ANÁLISIS DE MÉTRICAS (PARTES 4, 5 y 6)
 # ============================================================
-
-def analizar_congestion(congestion):
+def analizar_congestion(df):
     """
     PARTE 4
     Analiza congestión: 
     - frecuencia = proporción de minutos con al menos 1 avión en congestión
     - promedio = cuántos aviones en congestión en promedio por minuto
     """
-    minutos_totales = len(congestion)
-    minutos_con_congestion = sum(1 for c in congestion.values() if c > 0)
-    frecuencia = minutos_con_congestion / minutos_totales
-    promedio = sum(congestion.values()) / minutos_totales
-    return {"frecuencia": frecuencia, "promedio": promedio}
+    # Nuevo: promedio de minutos en congestión por avión aterrizado
+    # congestion debe ser el diccionario de la simulación (data)
+    minutos_por_avion = []
+    historia = df["historia"]
+    for datos in historia.values():
+        if len(datos["estado"]) == 0 or "Aterrizó" not in datos["estado"]:
+            continue
+        # Minutos en congestión: estado en fila/reinsertado y velocidad < v_max
+        minutos_cong = 0
+        for est, vel, vmax in zip(datos["estado"], datos["v"], datos["vmax"]):
+            if est in ["En fila", "Reinsertado"] and vel < vmax:
+                minutos_cong += 1
+        minutos_por_avion.append(minutos_cong)
+    promedio = np.mean(minutos_por_avion) if minutos_por_avion else 0.0
+    return {"promedio": promedio}
 
-def analizar_montevideo(desvios):
+def IC_globales(df):
+    # Agrupar por lambda
+    grouped = df.groupby("lambda")["congestion_prom"]
+
+    # Calcular promedio, desviación estándar y tamaño de muestra
+    resumen = grouped.agg(["mean", "std", "count"]).reset_index()
+
+    # Calcular error estándar y límites del intervalo de confianza al 95%
+    resumen["Error MonteCarlo"] = resumen["std"] / np.sqrt(resumen["count"])
+    resumen["IC95_lower"] = resumen["mean"] - 1.96 * resumen["Error MonteCarlo"]
+    resumen["IC95_upper"] = resumen["mean"] + 1.96 * resumen["Error MonteCarlo"]
+
+    return resumen
+
+def analizar_montevideo(data):
     """
     PARTE 4
     Analiza desvíos a Montevideo:
     - frecuencia = proporción de minutos con al menos 1 desvío
     - promedio = desvíos promedio por minuto
     """
+    desvios = data["desvios_montevideo"]
     minutos = len(desvios)
     minutos_con_desvio = sum(1 for c in desvios.values() if c > 0)
     frecuencia = minutos_con_desvio / minutos
     promedio = sum(desvios.values()) / minutos
     return {"frecuencia": frecuencia, "promedio": promedio}
 
-def analizar_viento(desvios):
+def analizar_viento(data):
     """
     PARTE 5
     Analiza desvíos por viento (go-around → trayectoria río).
     """
+    desvios = data["desvios_viento"]
     minutos = len(desvios)
     minutos_con_desvio = sum(1 for c in desvios.values() if c > 0)
     frecuencia = minutos_con_desvio / minutos
     promedio = sum(desvios.values()) / minutos
     return {"frecuencia": frecuencia, "promedio": promedio}
 
-def analizar_tormenta(desvios):
+def analizar_tormenta(data):
     """
     PARTE 6
     Analiza desvíos por tormenta (cierre de AEP).
     """
+    desvios = data.get("desvios_tormenta", {})
     minutos = len(desvios)
     minutos_con_desvio = sum(1 for c in desvios.values() if c > 0)
     frecuencia = minutos_con_desvio / minutos
     promedio = sum(desvios.values()) / minutos
     return {"frecuencia": frecuencia, "promedio": promedio}
 
-def calcular_atraso_promedio(historia, t_ideal):
+def calcular_atraso_promedio(data, t_ideal):
     """
     Calcula el atraso promedio comparando tiempo real de vuelo 
     contra tiempo ideal (sin congestión).
     """
+    historia = data["historia"]
     atrasos = []
     for avion_id, datos in historia.items():
         if len(datos["t"]) == 0:
@@ -152,6 +175,10 @@ def tiempo_ideal():
     Calcula el tiempo ideal (sin congestión, sin tormenta, sin viento),
     sumando tiempos de recorrer cada tramo a velocidad máxima.
     """
-    tramos = [(50, 500), (35, 300), (10, 250), (5, 150)]
+    tramos = [(50, 300), (35, 250), (10, 200), (5, 150)]
     total_minutos = sum(dist / (v / 60.0) for dist, v in tramos)
     return total_minutos
+
+def print_resumen(metricas_lambdas):
+     for m in metricas_lambdas:
+        print(metricas_lambdas[m].resumen())
