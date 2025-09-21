@@ -1,9 +1,9 @@
 from experimentos import correr_experimentos
 from analisis import MetricasSimulacion
 from graficos import (
-    plot_resumen_metricas,
-    plot_error_estimacion,
-    visualizar_simulacion_monte_carlo,
+    #plot_resumen_metricas,
+    #plot_error_estimacion,
+    #visualizar_simulacion_monte_carlo,
     #animar_simulacion_monte_carlo,
     plot_comparacion_tiempos,
 )
