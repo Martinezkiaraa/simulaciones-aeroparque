@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 # ============================================================
 # ENUNCIADO / SOPORTE GENERAL
@@ -99,6 +100,52 @@ def analizar_congestion(df):
     promedio = np.mean(minutos_por_avion) if minutos_por_avion else 0.0
     return {"promedio": promedio}
 
+def calcular_congestion_total(congestion_por_minuto):
+    """Calcula métricas de congestión del sistema completo"""
+    minutos_con_congestion = sum(1 for c in congestion_por_minuto.values() if c > 0)
+    total_minutos = len(congestion_por_minuto)
+    congestion_total = sum(congestion_por_minuto.values())
+    
+    return {
+        "frecuencia_congestion": minutos_con_congestion / total_minutos,
+        "congestion_promedio": congestion_total / total_minutos,
+        "congestion_maxima": max(congestion_por_minuto.values()),
+        "minutos_totales_congestion": congestion_total
+    }
+
+def calcular_congestion_por_tramo(historia):
+    """Analiza congestión según la distancia al AEP - promedio por avión que aterriza"""
+    tramos = {
+        "lejos": [],      # > 50 MN
+        "medio": [],      # 15-50 MN  
+        "cerca": []       # < 15 MN
+    }
+    
+    for avion_id, datos in historia.items():
+        if "Aterrizó" not in datos["estado"]:
+            continue
+        
+        # Contar minutos de congestión por tramo para este avión
+        minutos_por_tramo = {"lejos": 0, "medio": 0, "cerca": 0}
+        
+        for i, (distancia, estado, velocidad, vmax) in enumerate(
+            zip(datos["x"], datos["estado"], datos["v"], datos["vmax"])
+        ):
+            if estado in ["En fila", "Reinsertado"] and velocidad < vmax:
+                if distancia > 50:
+                    minutos_por_tramo["lejos"] += 1
+                elif distancia > 15:
+                    minutos_por_tramo["medio"] += 1
+                else:
+                    minutos_por_tramo["cerca"] += 1
+        
+        # Agregar los minutos de este avión a cada tramo
+        for tramo in tramos:
+            tramos[tramo].append(minutos_por_tramo[tramo])
+    
+    # Calcular promedio por avión para cada tramo
+    return {tramo: np.mean(valores) if valores else 0.0 for tramo, valores in tramos.items()}
+    
 def IC_globales(df):
     # Agrupar por lambda
     grouped = df.groupby("lambda")["congestion_prom"]
@@ -178,6 +225,190 @@ def tiempo_ideal():
     tramos = [(50, 300), (35, 250), (10, 200), (5, 150)]
     total_minutos = sum(dist / (v / 60.0) for dist, v in tramos)
     return total_minutos
+
+def analizar_congestion_promedio(df):
+    """
+    Analiza congestión promedio de todas las realizaciones por lambda.
+    
+    Parámetros:
+    - df: DataFrame con resultados de experimentos que incluye columnas de congestión
+    
+    Devuelve:
+    - DataFrame con métricas de congestión promedio y desviación estándar por lambda
+    """
+    # Verificar que las columnas necesarias existen
+    columnas_requeridas = ['frecuencia_congestion', 'congestion_maxima', 
+                          'congestion_lejos', 'congestion_medio', 'congestion_cerca']
+    
+    # Si no existen las columnas, calcularlas primero
+    if not all(col in df.columns for col in columnas_requeridas):
+        print("⚠️  Las columnas de congestión no están en el DataFrame.")
+        print("   Ejecuta primero los experimentos con las métricas de congestión incluidas.")
+        return None
+    
+    # Agrupar por lambda y calcular estadísticas
+    resumen = df.groupby("lambda").agg({
+        "frecuencia_congestion": ["mean", "std", "count"],
+        "congestion_maxima": ["mean", "std"],
+        "congestion_lejos": ["mean", "std"],
+        "congestion_medio": ["mean", "std"], 
+        "congestion_cerca": ["mean", "std"]
+    }).reset_index()
+    
+    # Aplanar nombres de columnas
+    resumen.columns = ['_'.join(col).strip() if col[1] else col[0] 
+                      for col in resumen.columns.values]
+    
+    # Calcular intervalos de confianza al 95%
+    for col in ['frecuencia_congestion', 'congestion_maxima', 'congestion_lejos', 
+                'congestion_medio', 'congestion_cerca']:
+        mean_col = f"{col}_mean"
+        std_col = f"{col}_std"
+        count_col = f"{col}_count" if col == 'frecuencia_congestion' else 'frecuencia_congestion_count'
+        
+        if mean_col in resumen.columns and std_col in resumen.columns:
+            # Error estándar
+            resumen[f"{col}_se"] = resumen[std_col] / np.sqrt(resumen[count_col])
+            # Intervalo de confianza 95%
+            resumen[f"{col}_ic_lower"] = resumen[mean_col] - 1.96 * resumen[f"{col}_se"]
+            resumen[f"{col}_ic_upper"] = resumen[mean_col] + 1.96 * resumen[f"{col}_se"]
+    
+    return resumen
+
+def analizar_congestion_montevideo(df):
+    """
+    Analiza congestión específicamente para aviones que van a Montevideo.
+    
+    Parámetros:
+    - df: DataFrame con resultados de experimentos que incluye columnas de congestión
+    
+    Devuelve:
+    - DataFrame con métricas de congestión promedio por lambda para aviones de Montevideo
+    """
+    # Verificar que las columnas necesarias existen
+    if 'historia' not in df.columns:
+        print("⚠️  La columna 'historia' no está en el DataFrame.")
+        return None
+    
+    resultados = []
+    
+    for _, fila in df.iterrows():
+        historia = fila['historia']
+        lambda_val = fila['lambda']
+        
+        # Analizar solo aviones que van a Montevideo
+        aviones_montevideo = []
+        for avion_id, datos in historia.items():
+            if "Montevideo" in datos["estado"]:
+                aviones_montevideo.append((avion_id, datos))
+        
+        if not aviones_montevideo:
+            # Si no hay aviones de Montevideo, agregar valores cero
+            resultados.append({
+                'lambda': lambda_val,
+                'congestion_prom_montevideo': 0.0,
+                'frecuencia_congestion_montevideo': 0.0,
+                'congestion_lejos_montevideo': 0.0,
+                'congestion_medio_montevideo': 0.0,
+                'congestion_cerca_montevideo': 0.0
+            })
+            continue
+        
+        # Calcular congestión promedio para aviones de Montevideo
+        minutos_por_avion = []
+        minutos_con_congestion = 0
+        total_minutos = 0
+        for avion_id, datos in aviones_montevideo:
+            minutos_cong = 0
+            for est, vel, vmax in zip(datos["estado"], datos["v"], datos["vmax"]):
+                total_minutos += 1
+                if est in ["En fila", "Reinsertado"] and vel < vmax:
+                    minutos_cong += 1
+                    minutos_con_congestion += 1
+            minutos_por_avion.append(minutos_cong)
+        
+        congestion_prom = np.mean(minutos_por_avion) if minutos_por_avion else 0.0
+        frecuencia = minutos_con_congestion / total_minutos if total_minutos > 0 else 0.0
+
+        tramos = {"lejos": [], "medio": [], "cerca": []}
+        
+        for avion_id, datos in aviones_montevideo:
+            minutos_por_tramo = {"lejos": 0, "medio": 0, "cerca": 0}
+            
+            for i, (distancia, estado, velocidad, vmax) in enumerate(
+                zip(datos["x"], datos["estado"], datos["v"], datos["vmax"])
+            ):
+                if estado in ["En fila", "Reinsertado"] and velocidad < vmax:
+                    if distancia > 50:
+                        minutos_por_tramo["lejos"] += 1
+                    elif distancia > 15:
+                        minutos_por_tramo["medio"] += 1
+                    else:
+                        minutos_por_tramo["cerca"] += 1
+            
+            for tramo in tramos:
+                tramos[tramo].append(minutos_por_tramo[tramo])
+        
+        # Calcular promedios por tramo
+        congestion_por_tramo = {
+            tramo: np.mean(valores) if valores else 0.0 
+            for tramo, valores in tramos.items()
+        }
+        
+        resultados.append({
+            'lambda': lambda_val,
+            'congestion_prom_montevideo': congestion_prom,
+            'frecuencia_congestion_montevideo': frecuencia,
+            'congestion_lejos_montevideo': congestion_por_tramo['lejos'],
+            'congestion_medio_montevideo': congestion_por_tramo['medio'],
+            'congestion_cerca_montevideo': congestion_por_tramo['cerca']
+        })
+    
+    return pd.DataFrame(resultados)
+
+def print_resumen_congestion(df):
+    """
+    Imprime un resumen detallado de las métricas de congestión.
+    
+    Parámetros:
+    - df: DataFrame con resultados de experimentos
+    """
+    resumen = analizar_congestion_promedio(df)
+    if resumen is None:
+        return
+    
+    print("=" * 80)
+    print("ANÁLISIS DETALLADO DE CONGESTIÓN POR LAMBDA")
+    print("=" * 80)
+    
+    for _, fila in resumen.iterrows():
+        lambda_val = fila['lambda']
+        print(f"\n🔹 LAMBDA = {lambda_val} aviones/min")
+        print("-" * 50)
+        
+        # Frecuencia de congestión
+        freq_mean = fila['frecuencia_congestion_mean']
+        freq_ic_lower = fila['frecuencia_congestion_ic_lower']
+        freq_ic_upper = fila['frecuencia_congestion_ic_upper']
+        print(f"📊 Frecuencia de congestión: {freq_mean:.3f} ({freq_ic_lower:.3f} - {freq_ic_upper:.3f})")
+        
+        # Congestión máxima
+        max_mean = fila['congestion_maxima_mean']
+        max_ic_lower = fila['congestion_maxima_ic_lower']
+        max_ic_upper = fila['congestion_maxima_ic_upper']
+        print(f"📈 Congestión máxima: {max_mean:.1f} aviones ({max_ic_lower:.1f} - {max_ic_upper:.1f})")
+        
+        # Congestión por tramo
+        print(f"📍 Congestión por tramo:")
+        print(f"   • Lejos (>50 MN): {fila['congestion_lejos_mean']:.1f} ± {fila['congestion_lejos_se']:.1f} min")
+        print(f"   • Medio (15-50 MN): {fila['congestion_medio_mean']:.1f} ± {fila['congestion_medio_se']:.1f} min")
+        print(f"   • Cerca (<15 MN): {fila['congestion_cerca_mean']:.1f} ± {fila['congestion_cerca_se']:.1f} min")
+        
+        # Total de congestión
+        total_congestion = (fila['congestion_lejos_mean'] + 
+                           fila['congestion_medio_mean'] + 
+                           fila['congestion_cerca_mean'])
+        print(f"🔢 Total congestión: {total_congestion:.1f} minutos")
 
 def print_resumen(metricas_lambdas):
      for m in metricas_lambdas:

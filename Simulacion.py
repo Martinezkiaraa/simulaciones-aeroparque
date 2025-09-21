@@ -64,8 +64,7 @@ def simular_con_historia(lambda_por_min, minutos, seed = None, dia_ventoso = Tru
     historia = {}  # GUARDA LA TRAYECTORIA DE CADA AVIÓN
 
     # DICCIONARIOS PARA GUARDAR MÉTRICAS MINUTO A MINUTO
-    congestion_actual = {t: 0 for t in range(minutos)}
-    congestion_final = {t: 0 for t in range(minutos)}
+    congestion = {t: 0 for t in range(minutos)}
     desvios_montevideo = {t: 0 for t in range(minutos)}
     desvios_fila = {t: 0 for t in range(minutos)}
     desvios_viento = {t: 0 for t in range(minutos)}
@@ -95,7 +94,8 @@ def simular_con_historia(lambda_por_min, minutos, seed = None, dia_ventoso = Tru
                       desviados = desviados, 
                       mtvd = montevideo, 
                       viento = viento, 
-                      tormenta = tormenta
+                      tormenta = tormenta,
+                      historia = historia
             )
 
             metricas.registrar_aviones()
@@ -117,13 +117,13 @@ def simular_con_historia(lambda_por_min, minutos, seed = None, dia_ventoso = Tru
 
             # MÉTRICA DE CONGESTIÓN: velocidad < vmax
             if (a.estado in ["En fila", "Reinsertado"]) and a.velocidad_actual < a.v_max:
-                congestion_actual[t] += 1
+                congestion[t] += 1
 
             # SI ATERRIZÓ 
             if a.estado == "Aterrizó":
                 historia[a.id]["t"].append(t)
                 historia[a.id]["estado"].append(a.estado)
-                congestion_final = congestion_actual
+        
             
             # SI NO ATERRIZÓ → REGISTRAR SU POSICIÓN Y VELOCIDAD
             if a.estado != "Aterrizó":
@@ -168,6 +168,7 @@ def simular_con_historia(lambda_por_min, minutos, seed = None, dia_ventoso = Tru
             desvios_montevideo[t] += 1
             historia[av.id]["t"].append(t)
             historia[av.id]["estado"].append(av.estado)
+            montevideo.aviones.remove(av)
         
     # AL FINAL: CUÁNTOS AVIONES QUEDARON EN EL AIRE
     metricas.en_vuelo(len(avs.aviones) + len(desviados.aviones) + len(viento.aviones) + len(tormenta.aviones))
@@ -175,7 +176,7 @@ def simular_con_historia(lambda_por_min, minutos, seed = None, dia_ventoso = Tru
     # DEVUELVE LA HISTORIA COMPLETA + MÉTRICAS MINUTO A MINUTO
     return {
         "historia": historia,
-        "congestion": congestion_final,
+        "congestion": congestion,
         "desvios_montevideo": desvios_montevideo,
         "desvios_fila": desvios_fila,
         "desvios_viento": desvios_viento,
