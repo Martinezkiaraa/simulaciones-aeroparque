@@ -5,6 +5,7 @@ from simulacion import simular_con_historia
 from simulacion_mejorado import simular_con_historia_v2
 from analisis import (
     analizar_congestion,
+    analizar_congestion_control,
     analizar_montevideo,
     analizar_viento,
     analizar_tormenta,
@@ -102,6 +103,7 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
                 # ESTADÍSTICAS DE CONGESTIÓN
                 congestion_stats = analizar_congestion(sim_data)
                 
+                
                 # ESTADÍSTICAS DE DESVÍOS A MONTEVIDEO
                 montevideo_stats = analizar_montevideo(sim_data)
                 
@@ -117,9 +119,13 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
                 # NUEVAS MÉTRICAS DE CONGESTIÓN POR REALIZACIÓN
                 congestion_total = calcular_congestion_total(sim_data["congestion"])
                 congestion_tramo = calcular_congestion_por_tramo(sim_data["historia"])
+                
+                # MÉTRICAS DE CONGESTIÓN CONTROL (solo para mejora = True)
+                congestion_control_stats = analizar_congestion_control(sim_data)
+                congestion_control_total = calcular_congestion_total(sim_data["congestion_control"]) if "congestion_control" in sim_data else None
 
                 # GUARDA RESULTADOS DE ESTA REPETICIÓN
-                resultados.append({
+                resultado = {
                     "lambda": lam,
                     "rep": rep,
                     "congestion_prom": congestion_stats["promedio"],
@@ -135,7 +141,18 @@ def correr_experimentos(lambdas, n_rep = 100, minutos = 1080, metricas_lambda = 
                     "congestion_lejos": congestion_tramo["lejos"],
                     "congestion_medio": congestion_tramo["medio"],
                     "congestion_cerca": congestion_tramo["cerca"],
-                    "historia": sim_data["historia"] 
-                })
+                    "historia": sim_data["historia"],
+                    "congestion": sim_data["congestion"]
+                }
+                
+                # Agregar métricas de congestion_control si están disponibles
+                if congestion_control_total is not None:
+                    resultado.update({
+                        "congestion_control": sim_data["congestion_control"],
+                        "frecuencia_congestion_control": congestion_control_total["frecuencia_congestion"],
+                        "congestion_control_maxima": congestion_control_total["congestion_maxima"]
+                    })
+                
+                resultados.append(resultado)
 
     return pd.DataFrame(resultados)

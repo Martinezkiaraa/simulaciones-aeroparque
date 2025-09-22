@@ -100,6 +100,27 @@ def analizar_congestion(df):
     promedio = np.mean(minutos_por_avion) if minutos_por_avion else 0.0
     return {"promedio": promedio}
 
+def analizar_congestion_control(df):
+    """
+    Analiza congestión_control específicamente para simulaciones con mejora.
+    - frecuencia = proporción de minutos con al menos 1 avión en congestión de control
+    - promedio = cuántos aviones en congestión de control en promedio por minuto
+    """
+    # Analizar congestión_control si está disponible
+    if "congestion_control" not in df:
+        return {"promedio": 0.0}
+    
+    congestion_control = df["congestion_control"]
+    minutos = len(congestion_control)
+    minutos_con_congestion = sum(1 for c in congestion_control.values() if c > 0)
+    frecuencia = minutos_con_congestion / minutos
+    promedio = sum(congestion_control.values()) / minutos
+    
+    return {
+        "frecuencia": frecuencia,
+        "promedio": promedio
+    }
+
 def calcular_congestion_total(congestion_por_minuto):
     """Calcula métricas de congestión del sistema completo"""
     minutos_con_congestion = sum(1 for c in congestion_por_minuto.values() if c > 0)

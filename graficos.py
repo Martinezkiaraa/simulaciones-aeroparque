@@ -920,24 +920,3 @@ def comparar_congestion(df_sin_mejora, df_con_mejora):
     plt.suptitle('Comparación de Congestión: Con vs Sin Mejora', fontsize=16, y=1.02)
     plt.show()
     
-    # Mostrar resumen estadístico
-    print("\n=== RESUMEN ESTADÍSTICO ===")
-    print(f"{'Lambda':<8} {'Tipo':<15} {'Freq. Cong.':<12} {'Cong. Max.':<12}")
-    print("-" * 50)
-    
-    for lambda_val in sorted(set(resumen_sin['lambda']) | set(resumen_con['lambda'])):
-        # Sin mejora
-        if lambda_val in resumen_sin['lambda'].values:
-            fila_sin = resumen_sin[resumen_sin['lambda'] == lambda_val].iloc[0]
-            print(f"{lambda_val:<8.2f} {'Sin mejora':<15} {fila_sin['frecuencia_congestion_mean']:<12.3f} {fila_sin['congestion_maxima_mean']:<12.3f}")
-        
-        # Con mejora
-        if lambda_val in resumen_con['lambda'].values:
-            fila_con = resumen_con[resumen_con['lambda'] == lambda_val].iloc[0]
-            print(f"{lambda_val:<8.2f} {'Con mejora':<15} {fila_con['frecuencia_congestion_mean']:<12.3f} {fila_con['congestion_maxima_mean']:<12.3f}")
-        
-        # Control (si está disponible)
-        if resumen_control is not None and lambda_val in resumen_control['lambda'].values:
-            fila_control = resumen_control[resumen_control['lambda'] == lambda_val].iloc[0]
-            print(f"{lambda_val:<8.2f} {'Control':<15} {fila_control['frecuencia_congestion_control_mean']:<12.3f} {fila_control['congestion_control_maxima_mean']:<12.3f}")
-        print()
