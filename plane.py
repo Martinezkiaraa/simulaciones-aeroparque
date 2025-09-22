@@ -78,7 +78,7 @@ class plane:
         # CASO 1: AVIÓN EN FILA O REINSERTADO
         # ----------------------------------------------------
         
-        if self.estado == "En fila" or self.estado == "Reinsertado":
+        if self.estado in ("En fila","Reinsertado"):
 
             # SI TIENE LÍDER ADELANTE, APLICAR LA REGLA DE SEPARACIÓN
             if self.next is not None and self.next.estado == "En fila":

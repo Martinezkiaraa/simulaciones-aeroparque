@@ -302,9 +302,9 @@ def cambio_data(df):
                     for est, vel, vmax in zip(datos["estado"], datos["v"], datos["vmax"]):
                         if est in ["En fila", "Reinsertado"] and vel < vmax:
                             minutos_cong += 1
-
+                    
                 # Atraso para aterrizados
-                atraso = 0
+                    atraso = 0
                 if "t" in datos and len(datos["t"]) > 0:
                     minuto_aparicion = datos["t"][0]
                     if estado_final == "Aterrizó":
@@ -312,13 +312,13 @@ def cambio_data(df):
                         minuto_aterrizo = datos["t"][idx]
                         t_real = minuto_aterrizo - minuto_aparicion
                         atraso = t_real - t_ideal
-
-                if estado_final == "Aterrizó":
-                    aterrizados_total += 1
-                    min_cong_aterrizados.append(minutos_cong)
-                    atraso_aterrizados.append(atraso)
-                elif estado_final == "Montevideo":
-                    desvios_sim += 1
+                
+                    if estado_final == "Aterrizó":
+                        aterrizados_total += 1
+                        min_cong_aterrizados.append(minutos_cong)
+                        atraso_aterrizados.append(atraso)
+                    elif estado_final == "Montevideo":
+                        desvios_sim += 1
 
             # tasa de MVD por minuto en esta simulación
             mvd_rate = desvios_sim / total_minutos_sim if total_minutos_sim > 0 else 0.0
@@ -384,15 +384,15 @@ def plot_comparacion_mejoras(df_sin_mejora, df_con_mejora):
     # ==========================================
     resumen_montevideo_sin = df_sin_mejora.groupby("lambda")["montevideo_prom"].agg(["mean", "std", "count"]).reset_index()
     resumen_montevideo_sin["se"] = resumen_montevideo_sin["std"] / np.sqrt(resumen_montevideo_sin["count"])
-
+    
     resumen_montevideo_con = df_con_mejora.groupby("lambda")["montevideo_prom"].agg(["mean", "std", "count"]).reset_index()
     resumen_montevideo_con["se"] = resumen_montevideo_con["std"] / np.sqrt(resumen_montevideo_con["count"])
-
-    axes[1].errorbar(resumen_montevideo_sin["lambda"], resumen_montevideo_sin["mean"],
-                      yerr=resumen_montevideo_sin["se"], marker='o', capsize=5,
+    
+    axes[1].errorbar(resumen_montevideo_sin["lambda"], resumen_montevideo_sin["mean"], 
+                      yerr=resumen_montevideo_sin["se"], marker='o', capsize=5, 
                       color='red', label='Sin Mejoras', linewidth=2)
-    axes[1].errorbar(resumen_montevideo_con["lambda"], resumen_montevideo_con["mean"],
-                      yerr=resumen_montevideo_con["se"], marker='s', capsize=5,
+    axes[1].errorbar(resumen_montevideo_con["lambda"], resumen_montevideo_con["mean"], 
+                      yerr=resumen_montevideo_con["se"], marker='s', capsize=5, 
                       color='green', label='Con Mejoras', linewidth=2)
     axes[1].set_title('Desvíos a Montevideo: Promedio por minuto')
     axes[1].set_xlabel('Lambda (aviones/min)')
@@ -996,6 +996,80 @@ def plot_prioritarios_vs_normales(df_base, df_prio):
     axes[2].set_ylabel('Valor')
     axes[2].grid(alpha=0.3)
     axes[2].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_atraso_prioritarios_vs_normales(df):
+    """
+    Atraso y tiempo total promedio por lambda, separando prioritarios vs no prioritarios.
+    Usa la columna 'historia' para calcular atrasos (solo aterrizados).
+    """
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    from analisis import tiempo_ideal
+
+    t0 = tiempo_ideal()
+    registros = []
+
+    for _, fila in df.iterrows():
+        lam = fila["lambda"]
+        historia = fila.get("historia", {})
+        atrasos_prio, atrasos_norm = [], []
+
+        for datos in historia.values():
+            es_prio = datos.get("prio", False)
+            estados = datos.get("estado", [])
+            tiempos = datos.get("t", [])
+            if not estados or not tiempos:
+                continue
+            if "Aterrizó" in estados:
+                idx = estados.index("Aterrizó")
+                minuto_aterrizo = tiempos[idx]
+                minuto_aparicion = tiempos[0]
+                t_real = minuto_aterrizo - minuto_aparicion
+                atraso = t_real - t0
+                (atrasos_prio if es_prio else atrasos_norm).append(atraso)
+
+        # Usar el λ exacto que viene en el DataFrame
+        registros.append({
+            "lambda": lam,
+            "atraso_prio": np.mean(atrasos_prio) if atrasos_prio else np.nan,
+            "atraso_normal": np.mean(atrasos_norm) if atrasos_norm else np.nan
+        })
+
+    df_runs = pd.DataFrame(registros)
+
+    def resumir(col):
+        g = df_runs.groupby("lambda")[col].agg(["mean", "std", "count"]).reset_index()
+        g["se"] = g["std"] / np.sqrt(g["count"].replace(0, np.nan))
+        return g
+
+    r_prio = resumir("atraso_prio")
+    r_norm = resumir("atraso_normal")
+
+    # Paneles: izquierda atraso, derecha tiempo total
+    fig, axes = plt.subplots(1, 2, figsize=(14,5))
+
+    # Atraso
+    axes[0].errorbar(r_prio["lambda"], r_prio["mean"], yerr=r_prio["se"], marker='o', capsize=5, label='Prioritarios')
+    axes[0].errorbar(r_norm["lambda"], r_norm["mean"], yerr=r_norm["se"], marker='s', capsize=5, label='No prioritarios')
+    axes[0].set_title('Atraso promedio por λ')
+    axes[0].set_xlabel('Lambda (aviones/min)')
+    axes[0].set_ylabel('Atraso promedio (min)')
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend()
+
+    # Tiempo total = atraso + t0 (misma SE)
+    axes[1].errorbar(r_prio["lambda"], r_prio["mean"] + t0, yerr=r_prio["se"], marker='o', capsize=5, label='Prioritarios')
+    axes[1].errorbar(r_norm["lambda"], r_norm["mean"] + t0, yerr=r_norm["se"], marker='s', capsize=5, label='No prioritarios')
+    axes[1].axhline(y=t0, color='gray', linestyle='--', linewidth=1, label='Tiempo ideal')
+    axes[1].set_title('Tiempo total promedio por λ')
+    axes[1].set_xlabel('Lambda (aviones/min)')
+    axes[1].set_ylabel('Minutos totales')
+    axes[1].grid(True, alpha=0.3)
+    axes[1].legend()
 
     plt.tight_layout()
     plt.show()

@@ -67,7 +67,7 @@ class plane_prioritario:
         self.calcular_rango_velocidad()
 
         if self.estado == "En fila" or self.estado == "Reinsertado":
-            # Regla de separación: 3 min si el seguidor es prioritario, 4 min si es normal
+            # Regla de separación: 3 min si el seguidor es prioritario, 5 min si es normal
             sep_req = 3.0 if self.prioritario else 5.0
 
             if self.next is not None and self.next.estado in ("En fila", "Reinsertado"):
@@ -83,14 +83,63 @@ class plane_prioritario:
                         # Para prioritarios: último intento a v_min antes de desviar
                         if self.prioritario and self.v_min > 0:
                             self.velocidad_actual = self.v_min
-                        else:
-                            self.estado = "Desviado"
-                            self.velocidad_actual = 200.0
-                            self.desviados.agregar_avion(self)
-                            self._descolar_y_reenlazar()
-                            return
                     else:
                         self.velocidad_actual = nueva_v
+
+                    # Si el seguidor es prioritario y aún no llega a 3 minutos de gap,
+                    # pedirle al líder que acelere (reduzca su gap adelante) para abrir espacio.
+                    if self.prioritario:
+                        # Recalcular gap tras el ajuste propio
+                        eta_self2 = self._eta(self.distancia_mn_aep, self.velocidad_actual)
+                        eta_next2 = self._eta(self.next.distancia_mn_aep, self.next.velocidad_actual)
+                        gap2 = eta_self2 - eta_next2
+                        if gap2 < 3.0:
+                            leader = self.next
+                            leader.calcular_rango_velocidad()
+                            # Acelerar respetando gap del líder con su propio líder
+                            leader_next = getattr(leader, 'next', None)
+                            if leader_next is not None and leader_next.estado in ("En fila", "Reinsertado"):
+                                eta_lead = self._eta(leader.distancia_mn_aep, max(leader.velocidad_actual, 1.0))
+                                eta_lead_next = self._eta(leader_next.distancia_mn_aep, max(leader_next.velocidad_actual, 1.0))
+                                gap_lead = eta_lead - eta_lead_next
+                                if gap_lead < 5.0:
+                                    # no violar el gap del líder → como mucho acompaño
+                                    leader.velocidad_actual = min(leader.v_max, leader_next.velocidad_actual - 20.0)
+                                else:
+                                    leader.velocidad_actual = leader.v_max
+                            else:
+                                leader.velocidad_actual = leader.v_max
+
+                            # Recalcular nuevamente con líder ajustado
+                            eta_self3 = self._eta(self.distancia_mn_aep, self.velocidad_actual)
+                            eta_lead3 = self._eta(leader.distancia_mn_aep, leader.velocidad_actual)
+                            gap3 = eta_self3 - eta_lead3
+
+                            # Si aún no alcanza y el líder NO es prioritario → líder se desvía, prioritario avanza
+                            leader_prioritario = leader.prioritario
+                            if gap3 < 3.0 and not leader_prioritario:
+                                # Registrar traza del líder antes de moverlo
+                                if self.historia is not None:
+                                    if leader.id not in self.historia:
+                                        self.historia[leader.id] = {"t": [], "x": [], "v": [], "estado": [], "vmax": []}
+                                    self.historia[leader.id]["t"].append(minuto_actual if minuto_actual is not None else 0)
+                                    self.historia[leader.id]["x"].append(leader.distancia_mn_aep)
+                                    self.historia[leader.id]["v"].append(leader.velocidad_actual)
+                                    self.historia[leader.id]["estado"].append("Desviado")
+                                    self.historia[leader.id]["vmax"].append(leader.v_max)
+
+                                leader.estado = "Desviado"
+                                leader.velocidad_actual = 200.0
+                                self.desviados.agregar_avion(leader)
+                                # Descolar líder de la fila, mantener punteros
+                                leader._descolar_y_reenlazar()
+                                # El prioritario puede ir a su velocidad máxima
+                                self.calcular_rango_velocidad()
+                                self.velocidad_actual = self.v_max
+                                # Reordenar fila tras cambios
+                                self.fila.actualizar_orden()
+                                # Salir temprano del paso actual
+                                return
                 elif gap >= (sep_req + 1.0):
                     # Recuperar a v_max si hay margen suficiente
                     self.velocidad_actual = self.v_max
