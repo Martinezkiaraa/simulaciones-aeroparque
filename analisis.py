@@ -443,3 +443,4 @@ def print_resumen(metricas_lambdas):
             resumen["desvios_viento"],
             resumen["desvios_tormenta"]
         ))
+

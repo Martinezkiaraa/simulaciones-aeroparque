@@ -30,9 +30,9 @@ def simular_con_historia_v2(lambda_por_min, minutos, seed = None, dia_ventoso = 
     #Agregamos atributos a los aviones
     avs.delta = 0.0   # 0, 10, 20 (kts)
     avs.i_max = 0     # 0-4
-    avs.consec_5 = 0         # minutos consecutivos con >=5 congestionados
-    avs.consec_3 = 0         # minutos consecutivos con >=3 congestionados
-    avs.consec_2 = 0         # minutos consecutivos con <=2 congestionados
+    avs.consec_3 = 0         # minutos consecutivos con >=5 congestionados
+    avs.consec_2 = 0         # minutos consecutivos con >=3 congestionados
+    avs.consec_1 = 0         # minutos consecutivos con <=2 congestionados
  
     # EJERCICIO 6 
     duracion_tormenta = 30
@@ -50,32 +50,32 @@ def simular_con_historia_v2(lambda_por_min, minutos, seed = None, dia_ventoso = 
         cong_prev = congestion_control[t-1] if t > 0 else 0 
 
         #ACTUALIZAMOS CONTADORES:
-        if cong_prev >= 5:
-            avs.consec_5 += 1
-        else:
-            avs.consec_5 = 0
-
         if cong_prev >= 3:
             avs.consec_3 += 1
         else:
             avs.consec_3 = 0
 
-        if cong_prev <= 2:
+        if cong_prev >= 2:
             avs.consec_2 += 1
         else:
             avs.consec_2 = 0
+
+        if cong_prev < 2:
+            avs.consec_1 += 1
+        else:
+            avs.consec_1 = 0
         
         #REGLAS DE ACTIVACIÓN DE LA POLÍTICA:
         # Encender fuerte si hay alta congestión sostenida (duró más de 2min)
-        if avs.consec_5 >= 2:
+        if avs.consec_3 >= 2:
             avs.delta, avs.i_max = 20.0, 4    # fuerte
         
         # Si no fuerte, quizá suave si hay congestión moderada sostenida
-        elif avs.consec_3 >= 2:
+        elif avs.consec_2 >= 2:
             avs.delta, avs.i_max = 10.0, 3    # suave
 
         # Apagar sólo si estuvo tranquilo un buen rato
-        elif avs.consec_2 >= 3:
+        elif avs.consec_1 >= 3:
             avs.delta, avs.i_max = 0.0, 0     # sin reducir velocidad
         # Si no se cumple nada, mantiene el estado anterior (no toca delta/i_max)
 

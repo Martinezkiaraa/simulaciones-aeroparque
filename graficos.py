@@ -272,59 +272,70 @@ def cambio_data(df):
     import pandas as pd
     import numpy as np
     
-    lambdas = sorted(df["lambda"].unique())
     resultados = []
     t_ideal = tiempo_ideal()
 
     for lam, grupo in df.groupby("lambda"):
-        aterrizados = 0
-        montevideo = 0
+        aterrizados_total = 0
         min_cong_aterrizados = []
         atraso_aterrizados = []
-        freq_montevideo = 0
+        freq_montevideo_acum = 0.0
+        mvd_rates = []  # desvíos a MVD por minuto por simulación
 
         for historia in grupo["historia"]:
             total_aviones = len(historia)
             desvios_sim = 0
-            for avion in historia.values():
-                estado_final = avion["estado"][-1] if "estado" in avion and len(avion["estado"]) > 0 else None
-                # Calcular minutos de congestión usando la misma lógica que otras funciones
+
+            # Duración estimada de la simulación (en minutos)
+            max_t = 0
+            for datos in historia.values():
+                if "t" in datos and len(datos["t"]) > 0:
+                    max_t = max(max_t, max(datos["t"]))
+            total_minutos_sim = max_t + 1 if max_t > 0 else 1
+
+            for datos in historia.values():
+                estado_final = datos["estado"][-1] if "estado" in datos and len(datos["estado"]) > 0 else None
+
+                # Minutos de congestión (por avión aterrizado)
                 minutos_cong = 0
-                if "estado" in avion and "v" in avion and "vmax" in avion:
-                    for est, vel, vmax in zip(avion["estado"], avion["v"], avion["vmax"]):
+                if "estado" in datos and "v" in datos and "vmax" in datos:
+                    for est, vel, vmax in zip(datos["estado"], datos["v"], datos["vmax"]):
                         if est in ["En fila", "Reinsertado"] and vel < vmax:
                             minutos_cong += 1
-                    
-                    # Calcular atraso usando la misma lógica que otras funciones
-                    atraso = 0
-                    if "t" in avion and len(avion["t"]) > 0:
-                        minuto_aparicion = avion["t"][0]
-                        if estado_final == "Aterrizó":
-                            idx = avion["estado"].index("Aterrizó")
-                            minuto_aterrizo = avion["t"][idx]
-                            t_real = minuto_aterrizo - minuto_aparicion
-                            atraso = t_real - t_ideal
-                
+
+                # Atraso para aterrizados
+                atraso = 0
+                if "t" in datos and len(datos["t"]) > 0:
+                    minuto_aparicion = datos["t"][0]
                     if estado_final == "Aterrizó":
-                        aterrizados += 1
-                        min_cong_aterrizados.append(minutos_cong)
-                        atraso_aterrizados.append(atraso)
-                    elif estado_final == "Montevideo":
-                        montevideo += 1
-                        desvios_sim += 1
-                # Frecuencia de desvíos por simulación
-                if total_aviones > 0:
-                    freq_montevideo += desvios_sim / total_aviones
+                        idx = datos["estado"].index("Aterrizó")
+                        minuto_aterrizo = datos["t"][idx]
+                        t_real = minuto_aterrizo - minuto_aparicion
+                        atraso = t_real - t_ideal
+
+                if estado_final == "Aterrizó":
+                    aterrizados_total += 1
+                    min_cong_aterrizados.append(minutos_cong)
+                    atraso_aterrizados.append(atraso)
+                elif estado_final == "Montevideo":
+                    desvios_sim += 1
+
+            # tasa de MVD por minuto en esta simulación
+            mvd_rate = desvios_sim / total_minutos_sim if total_minutos_sim > 0 else 0.0
+            mvd_rates.append(mvd_rate)
+
+            # Frecuencia de desvíos (proporción sobre aviones) en esta simulación
+            if total_aviones > 0:
+                freq_montevideo_acum += desvios_sim / total_aviones
 
         n_sim = len(grupo)
         resultados.append({
             "lambda": lam,
-            "aterrizajes": aterrizados / n_sim,
-            "desvios_montevideo": montevideo / n_sim,
+            "aterrizajes": (aterrizados_total / n_sim) if n_sim else 0,
             "prom_min_cong_aterrizados": np.mean(min_cong_aterrizados) if min_cong_aterrizados else 0,
             "atraso_aterrizados": np.mean(atraso_aterrizados) if atraso_aterrizados else 0,
-            "freq_montevideo": freq_montevideo / n_sim,
-            "montevideo": montevideo / n_sim
+            "montevideo_prom": float(np.mean(mvd_rates)) if mvd_rates else 0.0,
+            "freq_montevideo": (freq_montevideo_acum / n_sim) if n_sim else 0.0
         })
     
     return pd.DataFrame(resultados)
@@ -369,23 +380,23 @@ def plot_comparacion_mejoras(df_sin_mejora, df_con_mejora):
     axes[0].grid(True, alpha=0.3)
     
     # ==========================================
-    # GRÁFICO 2: Comparación de Desvíos a Montevideo
+    # GRÁFICO 2: Desvíos a Montevideo (promedio por minuto)
     # ==========================================
-    resumen_montevideo_sin = df_sin_mejora.groupby("lambda")["montevideo"].agg(["mean", "std", "count"]).reset_index()
+    resumen_montevideo_sin = df_sin_mejora.groupby("lambda")["montevideo_prom"].agg(["mean", "std", "count"]).reset_index()
     resumen_montevideo_sin["se"] = resumen_montevideo_sin["std"] / np.sqrt(resumen_montevideo_sin["count"])
-    
-    resumen_montevideo_con = df_con_mejora.groupby("lambda")["montevideo"].agg(["mean", "std", "count"]).reset_index()
+
+    resumen_montevideo_con = df_con_mejora.groupby("lambda")["montevideo_prom"].agg(["mean", "std", "count"]).reset_index()
     resumen_montevideo_con["se"] = resumen_montevideo_con["std"] / np.sqrt(resumen_montevideo_con["count"])
-    
-    axes[1].errorbar(resumen_montevideo_sin["lambda"], resumen_montevideo_sin["mean"], 
-                      yerr=resumen_montevideo_sin["se"], marker='o', capsize=5, 
+
+    axes[1].errorbar(resumen_montevideo_sin["lambda"], resumen_montevideo_sin["mean"],
+                      yerr=resumen_montevideo_sin["se"], marker='o', capsize=5,
                       color='red', label='Sin Mejoras', linewidth=2)
-    axes[1].errorbar(resumen_montevideo_con["lambda"], resumen_montevideo_con["mean"], 
-                      yerr=resumen_montevideo_con["se"], marker='s', capsize=5, 
+    axes[1].errorbar(resumen_montevideo_con["lambda"], resumen_montevideo_con["mean"],
+                      yerr=resumen_montevideo_con["se"], marker='s', capsize=5,
                       color='green', label='Con Mejoras', linewidth=2)
-    axes[1].set_title('Desvíos a Montevideo: Comparación con y sin Mejoras')
+    axes[1].set_title('Desvíos a Montevideo: Promedio por minuto')
     axes[1].set_xlabel('Lambda (aviones/min)')
-    axes[1].set_ylabel('Desvíos promedio por minuto')
+    axes[1].set_ylabel('Promedio por minuto')
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
     
@@ -919,4 +930,72 @@ def comparar_congestion(df_sin_mejora, df_con_mejora):
     plt.tight_layout()
     plt.suptitle('Comparación de Congestión: Con vs Sin Mejora', fontsize=16, y=1.02)
     plt.show()
-    
+
+def plot_prioritarios_vs_normales(df_base, df_prio):
+    """
+    Compara sin prioridad (df_base) vs con prioridad (df_prio) para:
+    - Atraso promedio por lambda (2 líneas)
+    - Desvíos a Montevideo promedio por lambda (2 líneas)
+    - Frecuencia de congestión y congestión máxima (4 líneas)
+    Requiere columnas: 'lambda', 'atraso_prom', 'montevideo_prom',
+    'frecuencia_congestion', 'congestion_maxima'.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+
+    # Resúmenes por lambda
+    def resumen(df, col):
+        r = df.groupby("lambda")[col].agg(["mean", "std", "count"]).reset_index()
+        r["se"] = r["std"] / np.sqrt(r["count"].replace(0, np.nan))
+        return r
+
+    r_atraso_base = resumen(df_base, "atraso_prom")
+    r_atraso_prio = resumen(df_prio, "atraso_prom")
+
+    r_mvd_base = resumen(df_base, "montevideo_prom")
+    r_mvd_prio = resumen(df_prio, "montevideo_prom")
+
+    r_freq_base = resumen(df_base, "frecuencia_congestion")
+    r_freq_prio = resumen(df_prio, "frecuencia_congestion")
+
+    r_max_base = resumen(df_base, "congestion_maxima")
+    r_max_prio = resumen(df_prio, "congestion_maxima")
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+
+    # 1) Atraso promedio
+    axes[0].errorbar(r_atraso_base["lambda"], r_atraso_base["mean"], yerr=r_atraso_base["se"],
+                     marker='o', capsize=4, label='Sin prioridad', color='tab:blue')
+    axes[0].errorbar(r_atraso_prio["lambda"], r_atraso_prio["mean"], yerr=r_atraso_prio["se"],
+                     marker='s', capsize=4, label='Con prioridad', color='tab:orange')
+    axes[0].set_title('Atraso promedio por λ')
+    axes[0].set_xlabel('Lambda (aviones/min)')
+    axes[0].set_ylabel('Minutos')
+    axes[0].grid(alpha=0.3)
+    axes[0].legend()
+
+    # 2) Desvíos a Montevideo
+    axes[1].errorbar(r_mvd_base["lambda"], r_mvd_base["mean"], yerr=r_mvd_base["se"],
+                     marker='o', capsize=4, label='Sin prioridad', color='tab:blue')
+    axes[1].errorbar(r_mvd_prio["lambda"], r_mvd_prio["mean"], yerr=r_mvd_prio["se"],
+                     marker='s', capsize=4, label='Con prioridad', color='tab:orange')
+    axes[1].set_title('Desvíos a Montevideo por λ')
+    axes[1].set_xlabel('Lambda (aviones/min)')
+    axes[1].set_ylabel('Promedio por minuto')
+    axes[1].grid(alpha=0.3)
+    axes[1].legend()
+
+    # 3) Frecuencia y máxima de congestión (4 líneas)
+    axes[2].plot(r_freq_base["lambda"], r_freq_base["mean"], marker='o', label='Freq. sin prio', color='tab:blue')
+    axes[2].plot(r_freq_prio["lambda"], r_freq_prio["mean"], marker='s', label='Freq. con prio', color='tab:orange')
+    axes[2].plot(r_max_base["lambda"], r_max_base["mean"], marker='^', label='Máxima sin prio', color='tab:green')
+    axes[2].plot(r_max_prio["lambda"], r_max_prio["mean"], marker='D', label='Máxima con prio', color='tab:red')
+    axes[2].set_title('Congestión: frecuencia y máxima')
+    axes[2].set_xlabel('Lambda (aviones/min)')
+    axes[2].set_ylabel('Valor')
+    axes[2].grid(alpha=0.3)
+    axes[2].legend()
+
+    plt.tight_layout()
+    plt.show()
